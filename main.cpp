@@ -17,11 +17,11 @@ int main()
         "username=joe";
 
 	std::cout << "=== Testing incomplete request===\n";
-	findHeaderEnd(IncompleteRawRequest);
+	std::cout << findHeaderEnd(IncompleteRawRequest);
 	std::cout << "=== Find headers end===\n";
-	findHeaderEnd(rawRequest);
-    // std::string headerPart, bodyPart;
-    // splitHeaderBody(rawRequest, headerPart, bodyPart);
+	std::cout << "Headers end at position: " << findHeaderEnd(rawRequest);
+	std::string headerPart, bodyPart;
+	splitHeaderBody(rawRequest, headerPart, bodyPart);
 
     // std::cout << "\n=== Step 3: Split headers into lines ===\n";
     // std::vector<std::string> lines = splitLines(headerPart);

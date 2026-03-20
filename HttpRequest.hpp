@@ -23,82 +23,64 @@ class HttpRequest
 size_t findHeaderEnd(const std::string& raw)
 {
 	size_t pos = raw.find("\r\n\r\n");
+
 	if (pos == std::string::npos) //npos is "not found". Its value is usually the largest possible size_t (-1 under the hood).
 	{
 		std::cout << "Headers not complete yet\n";
 		return std::string::npos;
 	}
-	std::cout << "Headers end at position: " << pos << "\n";
+	// std::cout << "Headers end at position: " << pos << "\n";
 	//pos finds the position where "\r\n\r\n" starts, what means the end of the request
 	return pos;
 }
 
-// void splitHeaderBody(const std::string& raw, std::string& headerPart, std::string& bodyPart) {
-//     size_t pos = findHeaderEnd(raw);
-//     if (pos == std::string::npos) return;
+void splitHeaderBody(const std::string& raw, std::string& headerPart, std::string& bodyPart)
+{
+	size_t pos = findHeaderEnd(raw);
 
-//     headerPart = raw.substr(0, pos);
-//     bodyPart = raw.substr(pos + 4);
-//     std::cout << "Header part:\n" << headerPart << "\n";
-//     std::cout << "Body part:\n" << bodyPart << "\n";
-// }
+	if (pos == std::string::npos)
+		return;
+	headerPart = raw.substr(0, pos);
+	bodyPart = raw.substr(pos + 4);
+	std::cout << "Header part:\n" << headerPart << "\n";
+	std::cout << "Body part:\n" << bodyPart << "\n";
+}
 
-// // ===== Step 3: Split headers into lines =====
-// std::vector<std::string> splitLines(const std::string& headerPart) {
-//     std::vector<std::string> lines;
-//     std::istringstream stream(headerPart);
-//     std::string line;
-//     while (std::getline(stream, line)) {
-//         if (!line.empty() && line.back() == '\r')
-//             line.pop_back();
-//         lines.push_back(line);
-//     }
+std::vector<std::string> splitLines(const std::string& headerPart)
+{
+	std::vector<std::string> lines; //Create a container to store each line separately
+	std::istringstream stream(headerPart); //reads the input from  headerPart the same way std::cin does from terminal
+	std::string line;
 
-//     std::cout << "Header lines:\n";
-//     for (const auto& l : lines) std::cout << l << "\n";
-//     return lines;
-// }
+	while (std::getline(stream, line))
+	{
+		if (!line.empty() && line.back() == '\r')//back checks the last character
+			line.pop_back();//pop_back removes the last character
+		lines.push_back(line);
+	}
+	std::cout << "Header lines:\n";
+	for (const auto& l : lines) std::cout << l << "\n";
+	return lines;
+}
 
-// // ===== Step 4: Parse start line =====
-// void parseStartLine(HttpRequest& request, const std::string& startLine) {
-//     std::istringstream ss(startLine);
-//     ss >> request.method >> request.path >> request.version;
-//     std::cout << "Parsed start line:\n";
-//     std::cout << "Method: " << request.method << "\n";
-//     std::cout << "Path: " << request.path << "\n";
-//     std::cout << "Version: " << request.version << "\n";
-// }
+std::vector<std::string> splitLinesManual(const std::string& headerPart)
+{
+	std::vector<std::string> lines; //Create a container to store each line separately
+	size_t start = 0;
 
-// // ===== Step 5: Parse headers =====
-// void parseHeaders(HttpRequest& request, const std::vector<std::string>& lines) {
-//     for (size_t i = 1; i < lines.size(); i++) {
-//         size_t sep = lines[i].find(":");
-//         if (sep == std::string::npos) continue;
+	while (true)
+	{
+		size_t end = headerPart.find("\r\n", start);
+		if (end == std::string::npos) // it goes inside this if just in case there's no more lines
+			break;
+		std::string line = headerPart.substr(start, end - start);
+		lines.push_back(line);//Add line to the end of the vector lines
+		start = end + 2; // skip "\r\n"
+	}
+	return lines;
+}
 
-//         std::string key = lines[i].substr(0, sep);
-//         std::string value = lines[i].substr(sep + 1);
-//         if (!value.empty() && value[0] == ' ')
-//             value.erase(0, 1);
-//         request.headers[key] = value;
-//     }
 
-//     std::cout << "Parsed headers:\n";
-//     for (const auto& h : request.headers)
-//         std::cout << h.first << ": " << h.second << "\n";
-// }
-
-// // ===== Step 6: Parse body =====
-// void parseBody(HttpRequest& request, const std::string& bodyPart) {
-//     if (request.headers.count("Content-Length")) {
-//         int length = std::stoi(request.headers["Content-Length"]);
-//         if ((int)bodyPart.size() < length) {
-//             std::cout << "Body incomplete\n";
-//             return;
-//         }
-//         request.body = bodyPart.substr(0, length);
-//     }
-//     std::cout << "Parsed body:\n" << request.body << "\n";
-// }
 
 #endif
 

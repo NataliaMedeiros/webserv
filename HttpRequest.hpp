@@ -63,6 +63,7 @@ std::vector<std::string> splitLines(const std::string& headerPart)
 	return lines;
 }
 
+//I think the manual is better
 std::vector<std::string> splitLinesManual(const std::string& headerPart)
 {
 	std::vector<std::string> lines; //Create a container to store each line separately
@@ -71,16 +72,67 @@ std::vector<std::string> splitLinesManual(const std::string& headerPart)
 	while (true)
 	{
 		size_t end = headerPart.find("\r\n", start);
-		if (end == std::string::npos) // it goes inside this if just in case there's no more lines
+		if (end == std::string::npos)
+		{ // it goes inside this if just in case there's no more lines
+			if (start < headerPart.size())
+				lines.push_back(headerPart.substr(start));
 			break;
+		}
 		std::string line = headerPart.substr(start, end - start);
 		lines.push_back(line);//Add line to the end of the vector lines
 		start = end + 2; // skip "\r\n"
 	}
+	std::cout << "Header lines:\n";
+	for (const auto& l : lines) std::cout << l << "\n";
 	return lines;
 }
 
+void parseFirstLine(HttpRequest& request, const std::string& startLine)
+{
+	size_t firstSpace = startLine.find(' ');
+	if (firstSpace == std::string::npos)
+		throw std::runtime_error("Invalid start line");
+	size_t secondSpace = startLine.find(' ', firstSpace + 1);
+	if (secondSpace == std::string::npos)
+		throw std::runtime_error("Invalid start line");
+	request.method = startLine.substr(0, firstSpace);
+	request.path = startLine.substr(firstSpace + 1, secondSpace - firstSpace - 1);
+	request.version = startLine.substr(secondSpace + 1);
+}
 
+// ===== Parse headers =====
+//Entender melhor e checar se é a melhor maneira
+void parseHeaders(HttpRequest& request, const std::vector<std::string>& lines)
+{
+	for (size_t i = 1; i < lines.size(); i++)
+	{
+		size_t sep = lines[i].find(":");
+		if (sep == std::string::npos)
+			continue;
+		std::string key = lines[i].substr(0, sep);
+		std::string value = lines[i].substr(sep + 1);
+		if (!value.empty() && value[0] == ' ')
+			value.erase(0, 1);
+		request.headers[key] = value;
+	}
+
+    std::cout << "Parsed headers:\n";
+    for (const auto& h : request.headers)
+        std::cout << h.first << ": " << h.second << "\n";
+}
+
+// // ===== Parse body =====
+// void parseBody(HttpRequest& request, const std::string& bodyPart) {
+//     if (request.headers.count("Content-Length")) {
+//         int length = std::stoi(request.headers["Content-Length"]);
+//         if ((int)bodyPart.size() < length) {
+//             std::cout << "Body incomplete\n";
+//             return;
+//         }
+//         request.body = bodyPart.substr(0, length);
+//     }
+//     std::cout << "Parsed body:\n" << request.body << "\n";
+// }
 
 #endif
 

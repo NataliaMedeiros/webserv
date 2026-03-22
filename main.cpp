@@ -23,15 +23,21 @@ int main()
 	std::string headerPart, bodyPart;
 	splitHeaderBody(rawRequest, headerPart, bodyPart);
 
-    // std::cout << "\n=== Step 3: Split headers into lines ===\n";
-    // std::vector<std::string> lines = splitLines(headerPart);
+	std::cout << "\n=== Split headers into lines ===\n";
+	std::vector<std::string> lines = splitLines(headerPart);
 
-    // std::cout << "\n=== Step 4: Parse start line ===\n";
-    // HttpRequest request;
-    // parseStartLine(request, lines[0]);
+	std::cout << "\n=== Split headers into lines manually ===\n";
+	std::vector<std::string> linesManual = splitLinesManual(headerPart);
 
-    // std::cout << "\n=== Step 5: Parse headers ===\n";
-    // parseHeaders(request, lines);
+    std::cout << "\n=== Parse first line ===\n";
+    HttpRequest request;
+    parseFirstLine(request, lines[0]);
+	std::cout << "Method: " << request.method << "\n";
+	std::cout << "Path: " << request.path << "\n";
+	std::cout << "Version: " << request.version << "\n";
+
+    std::cout << "\n=== Step 5: Parse headers ===\n";
+    parseHeaders(request, lines);
 
     // std::cout << "\n=== Step 6: Parse body ===\n";
     // parseBody(request, bodyPart);

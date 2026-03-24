@@ -36,8 +36,10 @@ int main()
 	std::cout << "Path: " << request.path << "\n";
 	std::cout << "Version: " << request.version << "\n";
 
-    std::cout << "\n=== Step 5: Parse headers ===\n";
+    std::cout << "\n=== Parse headers ===\n";
     parseHeaders(request, lines);
+    for (const auto& h : request.headers)
+        std::cout << h.first << ": " << h.second << "\n";
 
     // std::cout << "\n=== Step 6: Parse body ===\n";
     // parseBody(request, bodyPart);

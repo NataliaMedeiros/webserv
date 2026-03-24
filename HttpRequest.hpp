@@ -104,21 +104,17 @@ void parseFirstLine(HttpRequest& request, const std::string& startLine)
 //Entender melhor e checar se é a melhor maneira
 void parseHeaders(HttpRequest& request, const std::vector<std::string>& lines)
 {
-	for (size_t i = 1; i < lines.size(); i++)
+	for (size_t i = 1; i < lines.size(); i++) //headers starts at line 1
 	{
-		size_t sep = lines[i].find(":");
+		size_t sep = lines[i].find(":"); //: is the separator
 		if (sep == std::string::npos)
-			continue;
-		std::string key = lines[i].substr(0, sep);
-		std::string value = lines[i].substr(sep + 1);
-		if (!value.empty() && value[0] == ' ')
-			value.erase(0, 1);
-		request.headers[key] = value;
+			continue; //it will skip the line
+		std::string key = lines[i].substr(0, sep); //before the separator
+		std::string value = lines[i].substr(sep + 1); //after the separator
+		while (!value.empty() && value[0] == ' ')
+			value.erase(0, 1); //this erases 1 char startng by position 0
+		request.headers[key] = value; //add or update the key value
 	}
-
-    std::cout << "Parsed headers:\n";
-    for (const auto& h : request.headers)
-        std::cout << h.first << ": " << h.second << "\n";
 }
 
 // // ===== Parse body =====

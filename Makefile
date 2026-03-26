@@ -10,7 +10,7 @@ CYAN = \033[36m
 BOLD = \033[1m
 RESET = \033[0m
 
-SRC = main.cpp
+SRC = main.cpp HttpRequestParser.cpp
 
 
 OBJ = $(SRC:.cpp=.o)

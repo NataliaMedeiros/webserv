@@ -73,12 +73,8 @@ std::string HttpRequestParser::toLower(std::string s)
 size_t HttpRequestParser::findHeaderEnd(const std::string& raw)
 {
 	size_t pos = raw.find("\r\n\r\n");
-
 	if (pos == std::string::npos) //npos is "not found". Its value is usually the largest possible size_t (-1 under the hood).
-	{
-		std::cout << "Headers not complete yet\n";
 		return std::string::npos;
-	}
 	return pos;
 }
 

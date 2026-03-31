@@ -4,6 +4,44 @@
 #include <sstream>
 #include <stdexcept>
 #include <cctype>
+#include <vector>
+
+HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, HttpRequest& req)
+{
+    _buf += chunk;
+
+    // Reset request before parsing
+    req.method.clear();
+    req.path.clear();
+    req.version.clear();
+    req.headers.clear();
+    req.body.clear();
+
+	size_t pos = findHeaderEnd(_buf);
+	if (pos == std::string::npos)
+		return HttpRequestParser::NeedMore;
+	std::string headerPart;
+	std::string bodyPart;
+	splitHeaderBody(_buf, headerPart, bodyPart);
+	std::vector<std::string> lines = splitLines(headerPart);
+	if (lines.empty())
+		return HttpRequestParser::BadRequest;
+	try
+	{
+		parseFirstLine(req, lines[0]);
+		parseHeaders(req, lines);
+		if (!parseBody(req, bodyPart))
+			return HttpRequestParser::NeedMore;
+	}
+	catch (const std::exception&)
+	{
+		return HttpRequestParser::BadRequest;
+	}
+	// For now, clear everything after one request
+	// Later you can consume only the used bytes
+	_buf.clear();
+	return HttpRequestParser::Complete;
+}
 
 bool HttpRequestParser::parse(const std::string& raw, HttpRequest& request)
 {
@@ -11,31 +49,18 @@ bool HttpRequestParser::parse(const std::string& raw, HttpRequest& request)
 	std::string bodyPart;
 	std::vector<std::string> lines;
 
-	// 1. Check if headers are complete
 	size_t pos = findHeaderEnd(raw);
 	if (pos == std::string::npos)
-		return false; // still waiting for more data
-
-	// 2. Split headers and body
+		return false;
 	splitHeaderBody(raw, headerPart, bodyPart);
-
-	// 3. Split headers into lines
 	lines = splitLines(headerPart);
-
 	if (lines.empty())
 		throw std::runtime_error("Empty request");
-
-	// 4. Parse request line
 	parseFirstLine(request, lines[0]);
-
-	// 5. Parse headers
 	parseHeaders(request, lines);
-
-	// 6. Parse body
 	if (!parseBody(request, bodyPart))
-		return false; // body not complete yet
-
-	return true; // request fully parsed
+		return false;
+	return true;
 }
 
 std::string HttpRequestParser::toLower(std::string s)
@@ -54,8 +79,6 @@ size_t HttpRequestParser::findHeaderEnd(const std::string& raw)
 		std::cout << "Headers not complete yet\n";
 		return std::string::npos;
 	}
-	// std::cout << "Headers end at position: " << pos << "\n";
-	//pos finds the position where "\r\n\r\n" starts, what means the end of the request
 	return pos;
 }
 
@@ -67,28 +90,9 @@ void HttpRequestParser::splitHeaderBody(const std::string& raw, std::string& hea
 		return;
 	headerPart = raw.substr(0, pos);
 	bodyPart = raw.substr(pos + 4);
-	std::cout << "Header part:\n" << headerPart << "\n";
-	std::cout << "Body part:\n" << bodyPart << "\n";
 }
 
 std::vector<std::string> HttpRequestParser::splitLines(const std::string& headerPart)
-{
-	std::vector<std::string> lines; //Create a container to store each line separately
-	std::istringstream stream(headerPart); //reads the input from  headerPart the same way std::cin does from terminal
-	std::string line;
-
-	while (std::getline(stream, line))
-	{
-		if (!line.empty() && line.back() == '\r')//back checks the last character
-			line.pop_back();//pop_back removes the last character
-		lines.push_back(line);
-	}
-	std::cout << "Header lines:\n";
-	return lines;
-}
-
-//I think the manual is better
-std::vector<std::string> HttpRequestParser::splitLinesManual(const std::string& headerPart)
 {
 	std::vector<std::string> lines; //Create a container to store each line separately
 	size_t start = 0;

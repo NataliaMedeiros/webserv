@@ -18,8 +18,7 @@ SRCS =	src/main.cpp \
 		src/ConnectionStore.cpp \
 		src/ClientConnection.cpp \
 		src/ServerManager.cpp \
-		src/stubs.cpp \
-		src/RequestParser.cpp \
+		src/stubs.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 

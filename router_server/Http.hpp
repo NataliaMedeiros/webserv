@@ -3,8 +3,6 @@
 #include <unordered_map>
 #include <string_view>
 
-//THIS FILE IS FROM NOOR
-
 // NOTE: Parsed request representation.
 // This is the output of RequestParser.
 struct HttpRequest {

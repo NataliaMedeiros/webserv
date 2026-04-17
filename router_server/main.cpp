@@ -179,5 +179,42 @@ int main()
    runTest("POST should fail",
         router, handler, "POST", "/index.html");
 
+
+//     // Test 1: basic longest-match
+//     runTest("T1 longest match: /images beats /",
+//             router, handler, "GET", "/images/cat.jpg");
+
+//     // Test 2: fallback to /
+//     runTest("T2 fallback to /",
+//             router, handler, "GET", "/about.html");
+
+//     // Test 3: boundary bug check — /imageset must NOT match /images
+//     runTest("T3 boundary: /imageset must not match /images",
+//             router, handler, "GET", "/imageset/x.jpg");
+
+//     // Test 4: serve root /
+//     runTest("T4 root / serves index",
+//             router, handler, "GET", "/");
+
+//     // Test 5: redirect
+//     runTest("T5 redirect 301",
+//             router, handler, "GET", "/old");
+
+//     // Test 6: method not allowed (POST to /images which only allows GET)
+//     runTest("T6 method not allowed",
+//             router, handler, "POST", "/images/cat.jpg");
+
+//     // Test 7: autoindex directory
+//     runTest("T7 autoindex on /files/",
+//             router, handler, "GET", "/files/");
+
+//     // Test 8: upload POST
+//     runTest("T8 upload POST",
+//             router, handler, "POST", "/upload/test.txt", "hello upload content");
+
+//     // Test 9: DELETE
+//     runTest("T9 DELETE existing file",
+//             router, handler, "DELETE", "/images/cat.jpg");
+
     return 0;
 }

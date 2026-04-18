@@ -5,7 +5,8 @@ CXXFLAGS = -Wall -Wextra -Werror -std=c++17
 SRCS = main.cpp \
        Router.cpp \
        Handler.cpp \
-       FileSystem.cpp
+       FileSystem.cpp \
+	   ConfigParser.cpp \
 
 OBJS = $(SRCS:.cpp=.o)
 

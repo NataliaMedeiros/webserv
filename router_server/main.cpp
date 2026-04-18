@@ -3,6 +3,7 @@
 #include "FileSystem.hpp"
 #include "Http.hpp"
 #include <iostream>
+#include "ConfigParser.hpp"
 
 //Helper: print an HttpResponse summary
 static void printResponse(const HttpResponse& res)
@@ -39,48 +40,57 @@ static void runTest(const std::string& label,
     printResponse(res);
 }
 
-int main()
+int main(int argc, char* argv[])
 {
-    // ── Build fake config ──────────────────────────────────────────
-    ServerConfig config;
-    config.root  = "./www";
-    config.index = "index.html";
 
-    LocationConfig locRoot;
-    locRoot.path      = "/";
-    locRoot.root      = "./www";
-    locRoot.index     = "index.html";
-    locRoot.autoindex = false;
-    locRoot.methods   = {"GET", "POST", "DELETE"};
+     if (argc != 2) 
+     {
+          std::cerr << "Usage: " << argv[0] << " <config_file>\n";
+          return 1;
+      }
+  
+      ServerConfig config = ConfigParser::parse(argv[1]);
 
-    LocationConfig locImages;
-    locImages.path      = "/images";
-    locImages.root      = "./www/images";
-    locImages.autoindex = false;
-    locImages.methods   = {"GET"};
+     //     // ── Build fake config ──────────────────────────────────────────
+//     ServerConfig config;
+//     config.root  = "./www";
+//     config.index = "index.html";
 
-    LocationConfig locUpload;
-    locUpload.path       = "/upload";
-    locUpload.root       = "./www";
-    locUpload.uploadPath = "./www/uploads";
-    locUpload.methods    = {"POST"};
+//     LocationConfig locRoot;
+//     locRoot.path      = "/";
+//     locRoot.root      = "./www";
+//     locRoot.index     = "index.html";
+//     locRoot.autoindex = false;
+//     locRoot.methods   = {"GET", "POST", "DELETE"};
 
-    LocationConfig locRedirect;
-    locRedirect.path        = "/old";
-    locRedirect.redirectCode = 301;
-    locRedirect.redirectUrl  = "/new";
+//     LocationConfig locImages;
+//     locImages.path      = "/images";
+//     locImages.root      = "./www/images";
+//     locImages.autoindex = false;
+//     locImages.methods   = {"GET"};
 
-    LocationConfig locAuto;
-    locAuto.path      = "/files";
-    locAuto.root      = "./www/files";
-    locAuto.autoindex = true;
-    locAuto.methods   = {"GET"};
+//     LocationConfig locUpload;
+//     locUpload.path       = "/upload";
+//     locUpload.root       = "./www";
+//     locUpload.uploadPath = "./www/uploads";
+//     locUpload.methods    = {"POST"};
 
-    config.locations.push_back(locRoot);
-    config.locations.push_back(locImages);
-    config.locations.push_back(locUpload);
-    config.locations.push_back(locRedirect);
-    config.locations.push_back(locAuto);
+//     LocationConfig locRedirect;
+//     locRedirect.path        = "/old";
+//     locRedirect.redirectCode = 301;
+//     locRedirect.redirectUrl  = "/new";
+
+//     LocationConfig locAuto;
+//     locAuto.path      = "/files";
+//     locAuto.root      = "./www/files";
+//     locAuto.autoindex = true;
+//     locAuto.methods   = {"GET"};
+
+//     config.locations.push_back(locRoot);
+//     config.locations.push_back(locImages);
+//     config.locations.push_back(locUpload);
+//     config.locations.push_back(locRedirect);
+//     config.locations.push_back(locAuto);
 
     Router  router(config);
     std::cout << "\n========== ROUTER TESTS ==========\n";

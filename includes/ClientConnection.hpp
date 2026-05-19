@@ -1,6 +1,6 @@
 #pragma once
 #include "Fd.hpp"
-#include "RequestParser.hpp"
+#include "HttpRequestParser.hpp" // before it was: #include "RequestParser.hpp"
 #include "Router.hpp"
 #include "Handlers.hpp"
 #include <string>
@@ -36,7 +36,7 @@ private:
   std::string _out;
 
   // NOTE: Incremental parser that can accept partial reads.
-  RequestParser _parser;
+  HttpRequestParser _parser; // before it wat RequestParser 
 
   // Router decides which handler to use (static/upload/cgi).
   Router _router;

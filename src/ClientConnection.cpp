@@ -64,11 +64,12 @@ void ClientConnection::onReadable()
             // The parser may need multiple calls before it has a complete request
             // (TCP can split one HTTP request across multiple recv() calls).
             HttpRequest req;
-            RequestParser::Result result = _parser.feed(
+            // before it was: RequestParser
+            HttpRequestParser::Result result = _parser.feed(
                 std::string(buf, static_cast<size_t>(bytesRead)), req
             );
 
-            if (result == RequestParser::Result::BadRequest)
+            if (result == HttpRequestParser::Result::BadRequest) // before it was RequestParser
             {
                 // The browser sent something we cannot understand - send 400 and close
                 std::cout << "  Bad request on fd=" << fd() << "\n";
@@ -77,7 +78,7 @@ void ClientConnection::onReadable()
                 return;
             }
 
-            if (result == RequestParser::Result::Complete)
+            if (result == HttpRequestParser::Result::Complete)
             {
                 // We have a full, valid HTTP request - handle it
                 std::cout << "  Request complete: " << req.method << " " << req.path << "\n";

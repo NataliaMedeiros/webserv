@@ -152,30 +152,42 @@ void ClientConnection::queueResponse(const HttpResponse& resp, bool keepAlive)
     else
         _state = State::Writing;
 }
-
-// handleRequest() is the "controller" - it decides what to do with a completed request.
-// It asks the Router which handler to use, then calls that handler to build the response.
 void ClientConnection::handleRequest(const HttpRequest& req)
 {
-    // Ask the Router: given this request, what should we do?
-    // (later: Router will use the config file to match location blocks)
     RouteDecision decision = _router.route(req);
 
-    // Only allow the three methods the subject requires
-    if (req.method != "GET" && req.method != "POST" && req.method != "DELETE")
-    {
-        queueResponse(HttpResponse::methodNotAllowed(), req.keepAlive);
-        return;
-    }
-
-    // Pick the right handler based on the routing decision
-    HttpResponse resp;
-    if (decision.isCgi)
-        resp = Handlers::handleCgi(req, decision);         // Run a CGI script (Phase 6)
-    else if (req.method == "POST" && decision.allowUpload)
-        resp = Handlers::handleUpload(req, decision);      // Handle file upload (Phase 5)
-    else
-        resp = Handlers::serveStatic(req, decision);       // Serve a file from disk (Phase 3)
+    Handler handler;
+    HttpResponse resp = handler.handle(decision, req);
 
     queueResponse(resp, req.keepAlive);
 }
+
+
+//OLD!! changed for the one above on 19 May
+// // handleRequest() is the "controller" - it decides what to do with a completed request.
+// // It asks the Router which handler to use, then calls that handler to build the response.
+//
+// void ClientConnection::handleRequest(const HttpRequest& req)
+// {
+//     // Ask the Router: given this request, what should we do?
+//     // (later: Router will use the config file to match location blocks)
+//     RouteDecision decision = _router.route(req);
+
+//     // Only allow the three methods the subject requires
+//     if (req.method != "GET" && req.method != "POST" && req.method != "DELETE")
+//     {
+//         queueResponse(HttpResponse::methodNotAllowed(), req.keepAlive);
+//         return;
+//     }
+
+//     // Pick the right handler based on the routing decision
+//     HttpResponse resp;
+//     if (decision.isCgi)
+//         resp = Handlers::handleCgi(req, decision);         // Run a CGI script (Phase 6)
+//     else if (req.method == "POST" && decision.allowUpload)
+//         resp = Handlers::handleUpload(req, decision);      // Handle file upload (Phase 5)
+//     else
+//         resp = Handlers::serveStatic(req, decision);       // Serve a file from disk (Phase 3)
+
+//     queueResponse(resp, req.keepAlive);
+// }

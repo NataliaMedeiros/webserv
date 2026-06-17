@@ -2,6 +2,7 @@
 #include "FileSystem.hpp"
 #include <sstream>
 #include <stdexcept>
+#include <iostream>
 
 // ─────────────────────────────────────────────
 // tokenize()
@@ -9,40 +10,37 @@
 // Turn the file text into a list of tokens.
 // Whitespace separates tokens. { } and ; are always their own token.
 // Comments (#...) are ignored.
+// So tokens looks like: ["server", "{", "listen", "80", ";", "}"]
 // ─────────────────────────────────────────────
 std::vector<std::string> ConfigParser::tokenize(const std::string& text)
 {
-    std::vector<std::string> tokens;
-    std::string current;
+    std::vector<std::string> tokens; //vector is a dynamic array to store tokens
+    std::string temp;//temporary storage for building up a token
 
     for (size_t i = 0; i < text.size(); ++i)
     {
         char c = text[i];
-
-        // Skip comments: from # to end of line
         if (c == '#') 
         {
             while (i < text.size() && text[i] != '\n') ++i;
-            continue;
+            continue;// Skip comments: from # to end of line
         }
-
-        // { } ; are always their own token
-        if (c == '{' || c == '}' || c == ';') 
+        if (c == '{' || c == '}' || c == ';')  // { } ; are always their own token
         {
-            if (!current.empty()) { tokens.push_back(current); current.clear(); }
-            tokens.push_back(std::string(1, c));
+            if (!temp.empty()) //if there is a token leftover
+            { tokens.push_back(temp); temp.clear(); } //push it to vector and clear temp for next token
+            tokens.push_back(std::string(1, c)); //take the symbol as its own token
             continue;
         }
-
-        // Whitespace ends the current token
-        if (std::isspace(static_cast<unsigned char>(c))) {
-            if (!current.empty()) { tokens.push_back(current); current.clear(); }
+        // Whitespace ends the temp token
+        if (std::isspace(static_cast<unsigned char>(c))) 
+        {
+            if (!temp.empty()) { tokens.push_back(temp); temp.clear(); }
             continue;
         }
-
-        current += c;
+        temp += c;//build up the token character by character
     }
-    if (!current.empty()) tokens.push_back(current);
+    if (!temp.empty()) tokens.push_back(temp);
     return tokens;
 }
 
@@ -69,31 +67,57 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
     {
         const std::string& key = tokens[i++];
 
-        if (key == "root") {
-            loc.root = tokens[i++];
+        if (key == "root") 
+        {
+            loc.root = tokens[i++];//assign the next token to root and move to next token
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after root");
         }
-        else if (key == "index") {
+        else if (key == "index") 
+        {
             loc.index = tokens[i++];
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after index");
         }
-        else if (key == "autoindex") {
+        else if (key == "autoindex") //not yet implemented
+        {
             loc.autoindex = (tokens[i++] == "on");
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after autoindex");
         }
-        else if (key == "upload_dir") {
+        else if (key == "upload_dir") //not yet implemented
+        {
             loc.uploadPath = tokens[i++];
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after upload_dir");
         }
-        else if (key == "cgi") {
+        else if (key == "cgi") //not yet implemented
+        {
             loc.cgiPass = tokens[i++];
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after cgi");
         }
-        else if (key == "methods") {
+        else if (key == "methods") 
+        {
             // Read words until ;
             while (i < tokens.size() && tokens[i] != ";")
                 loc.methods.push_back(tokens[i++]);
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after methods");
         }
-        else if (key == "return") {
-            loc.redirectCode = std::stoi(tokens[i++]);
+        else if (key == "return") 
+        {
+            
+            try { loc.redirectCode = std::stoi(tokens[i++]); }//stoi() converts a string to an integer;assign the next token to port and move to next token
+            catch (...) { throw std::runtime_error("invalid redirectCode: " + tokens[i-1]); }
+            if (i >= tokens.size() || tokens[i] == ";" || tokens[i] == "}")//no URL provided after code
+                throw std::runtime_error("return directive missing URL");
             loc.redirectUrl  = tokens[i++];
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after return");
         }
-        else {
+        else 
+        {
             throw std::runtime_error("unknown directive in location: " + key);
         }
 
@@ -123,31 +147,40 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
 
     while (i < tokens.size() && tokens[i] != "}")
     {
-        const std::string& key = tokens[i++];
+        const std::string& key = tokens[i++];//assign the current token to key and move to next token
 
-        if (key == "listen") {
-            srv.port = std::stoi(tokens[i++]);
+        if (key == "listen") 
+        {
+            try { srv.port = std::stoi(tokens[i++]); }//stoi() converts a string to an integer;assign the next token to port and move to next token
+            catch (...) { throw std::runtime_error("invalid port number: " + tokens[i-1]); }
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after listen");
         }
-        else if (key == "root") {
+        else if (key == "root") 
+        {
             srv.root = tokens[i++];
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after root");
         }
-        else if (key == "index") {
+        else if (key == "index") 
+        {
             srv.index = tokens[i++];
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after index");
         }
-        else if (key == "location") {
+        else if (key == "location") 
+        {
             srv.locations.push_back(parseLocation(tokens, i));
             continue; // parseLocation consumed its own ;/}
         }
-        else {
+        else 
+        {
             throw std::runtime_error("unknown directive in server: " + key);
         }
-
         if (i < tokens.size() && tokens[i] == ";") ++i;
     }
-
     if (i >= tokens.size()) throw std::runtime_error("missing } for server");
-    ++i;
-
+    ++i; // consume }
     return srv;
 }
 
@@ -163,11 +196,9 @@ ServerConfig ConfigParser::parse(const std::string& filename)
         throw std::runtime_error("cannot open config file: " + filename);
 
     std::vector<std::string> tokens = tokenize(text);
-
     size_t i = 0;
     if (i >= tokens.size() || tokens[i] != "server")
         throw std::runtime_error("config must start with 'server'");
     ++i;
-
     return parseServer(tokens, i);
 }

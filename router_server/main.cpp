@@ -47,9 +47,17 @@ int main(int argc, char* argv[])
      {
           std::cerr << "Usage: " << argv[0] << " <config_file>\n";
           return 1;
-      }
-  
-      ServerConfig config = ConfigParser::parse(argv[1]);
+     }
+     ServerConfig config; 
+     try 
+     {
+          config = ConfigParser::parse(argv[1]);
+     } 
+     catch (const std::exception& e) 
+     {
+          std::cerr << "Config error: " << e.what() << "\n";
+          return 1;
+     }
 
      //     // ── Build fake config ──────────────────────────────────────────
 //     ServerConfig config;

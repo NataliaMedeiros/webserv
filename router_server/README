@@ -10,9 +10,14 @@ Standalone, tested. **Not yet integrated with main.**
 - Method restriction per route
 - Error responses (404, 405, 500)
 - Alias-style path resolution (subject's kapouet example)
+- ConfigParser tokenizer + server/location block parser
+  - Handles: root, index, listen, autoindex, methods, upload_dir, cgi, return
+  - Ignores inline comments (#)
+  - Throws on unknown directives, missing braces, bad port, missing server block
+    -TO DO:(THE INVALIDATION OF MISSING SEMICOLON IS CAUSING UNPREDICTABLE BEHAVIOR 
+        for other edge cases in configuration; so TEST THEM ALL!!!)
 
 ## Not yet implemented
-- ConfigParser (config hardcoded in `main.cpp` for now)
 - Upload (multipart parsing)
 - CGI
 - Default error pages from config

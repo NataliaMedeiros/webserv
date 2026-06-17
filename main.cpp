@@ -65,7 +65,7 @@ int main()
 
 
 	/////
-	std::cout << "Teste 3 — Content-Length em maiúsculas/minúsculas misturadas\n";
+	std::cout << "Teste 3 — CoNtEnT-LeNgTh em maiúsculas/minúsculas misturadas\n";
 	HttpRequest req3;
 	HttpRequestParser parser3;
 	HttpRequestParser::Result res3 =
@@ -93,6 +93,36 @@ int main()
 		parser5.feed("POST /upload HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\n\r\nhel", req5);
 
 	std::cout << "res = " << res5 << "\n";
+	std::cout << "\n";
+
+	/////
+	std::cout << "Teste 6 — Content-Length\n";
+	HttpRequest req6;
+	HttpRequestParser parser6;
+	HttpRequestParser::Result res6 =
+		parser6.feed("POST /login HTTP/1.1\r\nHost: example.com\r\nContent-Length: 12\r\n\r\nusername=joe", req6);
+	std::cout << "res = " << res6 << "\n";
+	std::cout << "body = " << req6.body << "\n";
+	std::cout << "\n";
+
+	std::cout << "Teste 7 — Trailing whitespace no Content-Length\n";
+	HttpRequest req7;
+	HttpRequestParser parser7;
+	HttpRequestParser::Result res7 =
+		parser7.feed("POST /login HTTP/1.1\r\nHost: example.com\r\nContent-Length: 12   \r\n\r\nusername=joe", req7);
+	std::cout << "res = " << res7 << "\n";
+	std::cout << "body = [" << req7.body << "]\n";
+	std::cout << "\n";
+
+	std::cout << "Teste 8 — Extra bytes after one complete request\n";
+	HttpRequest req8;
+	HttpRequestParser parser8;
+	HttpRequestParser::Result res8 =
+		parser7.feed("POST /a HTTP/1.1\r\nHost: x\r\nContent-Length: 5\r\n\r\nhelloGET /b HTTP/1.1\r\nHost: x\r\n\r\n", req8);
+	std::cout << "res = " << res8 << "\n";
+	std::cout << "body = [" << req8.body << "]\n";
+	std::cout << "\n";
+
 
 	return (1);
 }

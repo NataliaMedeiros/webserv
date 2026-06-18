@@ -25,24 +25,30 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 	std::vector<std::string> lines = splitLines(headerPart);
 
 	if (lines.empty())
+	{
+		_buf.clear();
 		return BadRequest;
+	}
+
+	size_t bodyBytesConsumed = 0;
 
 	try
 	{
 		parseFirstLine(tmp, lines[0]);
 		parseHeaders(tmp, lines);
-		if (!parseBody(tmp, bodyPart))
+		if (!parseBody(tmp, bodyPart, bodyBytesConsumed))
 			return NeedMore;
 	}
 	catch (const std::exception&)
 	{
+		_buf.clear();
 		return BadRequest;
 	}
 	// Only write to the caller's req when the whole request is ready.
 	req = tmp;
 	// For now, clear everything after one request
 	// Later you can consume only the used bytes
-	_buf.clear();
+	_buf = _buf.substr(headerPart.size() + 4 + bodyBytesConsumed);
 	return Complete;
 }
 
@@ -141,23 +147,53 @@ void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std
 	}
 }
 
-bool HttpRequestParser::parseBody(HttpRequest& request, const std::string& bodyPart)
+bool HttpRequestParser::parseBody(HttpRequest& req,
+                                  const std::string& bodyPart,
+                                  size_t& bodyBytesConsumed)
 {
-	std::map<std::string, std::string>::const_iterator it = request.headers.find("content-length");
-	if (it == request.headers.end())
-	{
-		request.body = "";
-		return true;
-	}
-	std::istringstream iss(it->second);
-	size_t length;
-	iss >> length;
-	if (iss.fail() || !iss.eof() || length < 0)
-		throw std::runtime_error("Invalid Content-Length");
-	if ((size_t)bodyPart.size() < length)
-		return false;
-	request.body = bodyPart.substr(0, length);
-	return true;
+    std::map<std::string, std::string>::const_iterator teIt =
+        req.headers.find("transfer-encoding");
+
+    if (teIt != req.headers.end() && toLower(teIt->second) == "chunked")
+    {
+        size_t chunkedConsumed = 0;
+        if (!parseChunkedBody(req, bodyPart, chunkedConsumed))
+            return false;
+        bodyBytesConsumed = chunkedConsumed;
+        parseQueryString(req);
+        return true;
+    }
+
+    std::map<std::string, std::string>::const_iterator clIt =
+        req.headers.find("content-length");
+
+    if (clIt != req.headers.end())
+    {
+        const std::string& clStr = clIt->second;
+        for (size_t i = 0; i < clStr.size(); i++)
+            if (!std::isdigit(static_cast<unsigned char>(clStr[i])))
+                throw std::runtime_error("non-digit in Content-Length");
+
+        std::istringstream iss(clStr);
+        long length;
+        iss >> length;
+        if (iss.fail() || length < 0)
+            throw std::runtime_error("invalid Content-Length value");
+        if (static_cast<long>(bodyPart.size()) < length)
+            return false;
+        req.body = bodyPart.substr(0, static_cast<size_t>(length));
+        bodyBytesConsumed = static_cast<size_t>(length); // só os bytes do body
+        parseQueryString(req);
+        return true;
+    }
+
+    if (req.method == "POST")
+        throw std::runtime_error("POST without Content-Length or Transfer-Encoding");
+
+    req.body          = "";
+    bodyBytesConsumed = 0;
+    parseQueryString(req);
+    return true;
 }
 
 bool HttpRequestParser::isValidMethod(const std::string& method)
@@ -276,61 +312,56 @@ void HttpRequestParser::parseQueryString(HttpRequest& req)
 // Returns false if more data is needed.
 // Throws on malformed chunk encoding.
 bool HttpRequestParser::parseChunkedBody(HttpRequest& req,
-                                         const std::string& bodyPart)
+                                         const std::string& bodyPart,
+                                         size_t& bytesConsumed)
 {
-	std::string decoded;
-	size_t pos = 0;
+    std::string decoded;
+    size_t pos = 0;
 
-	while (pos < bodyPart.size())
-	{
-		// 1. Find the end of the chunk-size line.
-		size_t crlf = bodyPart.find("\r\n", pos);
-		if (crlf == std::string::npos)
-			return false; // size line not yet arrived — need more data
+    while (pos < bodyPart.size())
+    {
+        size_t crlf = bodyPart.find("\r\n", pos);
+        if (crlf == std::string::npos)
+            return false;
 
-		// 2. Parse the chunk size (hex number, may have extensions after ';').
-		std::string sizeLine = bodyPart.substr(pos, crlf - pos);
-		size_t semi = sizeLine.find(';');
-		if (semi != std::string::npos)
-			sizeLine = sizeLine.substr(0, semi); // strip chunk extensions
+        std::string sizeLine = bodyPart.substr(pos, crlf - pos);
+        size_t semi = sizeLine.find(';');
+        if (semi != std::string::npos)
+            sizeLine = sizeLine.substr(0, semi);
 
-		sizeLine = trim(sizeLine);
-		if (sizeLine.empty())
-			throw std::runtime_error("empty chunk size line");
+        sizeLine = trim(sizeLine);
+        if (sizeLine.empty())
+            throw std::runtime_error("empty chunk size line");
 
-		// Validate: must be all hex digits
-		for (size_t i = 0; i < sizeLine.size(); i++)
-			if (!std::isxdigit(static_cast<unsigned char>(sizeLine[i])))
-				throw std::runtime_error("non-hex character in chunk size");
+        for (size_t i = 0; i < sizeLine.size(); i++)
+            if (!std::isxdigit(static_cast<unsigned char>(sizeLine[i])))
+                throw std::runtime_error("non-hex character in chunk size");
 
-		long chunkSize = std::strtol(sizeLine.c_str(), NULL, 16);
-		if (chunkSize < 0)
-			throw std::runtime_error("negative chunk size");
+        long chunkSize = std::strtol(sizeLine.c_str(), NULL, 16);
+        if (chunkSize < 0)
+            throw std::runtime_error("negative chunk size");
 
-		pos = crlf + 2; // move past the size CRLF
+        pos = crlf + 2;
 
-		// 3. Last chunk: size == 0 means end-of-body.
-		if (chunkSize == 0)
-		{
-			// The final terminating \r\n must also be present.
-			if (pos + 2 > bodyPart.size())
-				return false; // still waiting for the final CRLF
-			req.body = decoded;
-			return true;
-		}
+        if (chunkSize == 0)
+        {
+            if (pos + 2 > bodyPart.size())
+                return false;
+            req.body     = decoded;
+            bytesConsumed = pos + 2; // aponta para depois do \r\n final
+            return true;
+        }
 
-		// 4. Check that the full chunk data + trailing CRLF has arrived.
-		size_t dataEnd = pos + static_cast<size_t>(chunkSize);
-		if (dataEnd + 2 > bodyPart.size())
-			return false; // chunk data not yet complete
+        size_t dataEnd = pos + static_cast<size_t>(chunkSize);
+        if (dataEnd + 2 > bodyPart.size())
+            return false;
 
-		// 5. The two bytes after chunk data must be \r\n.
-		if (bodyPart[dataEnd] != '\r' || bodyPart[dataEnd + 1] != '\n')
-			throw std::runtime_error("missing CRLF after chunk data");
+        if (bodyPart[dataEnd] != '\r' || bodyPart[dataEnd + 1] != '\n')
+            throw std::runtime_error("missing CRLF after chunk data");
 
-		decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
-		pos = dataEnd + 2; // skip data + CRLF
-	}
+        decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
+        pos = dataEnd + 2;
+    }
 
-	return false; // fell off the end without seeing the final 0-chunk
+    return false;
 }

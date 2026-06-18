@@ -19,12 +19,12 @@ class HttpRequestParser
 		std::vector<std::string> splitLines(const std::string& headerPart);
 		void parseFirstLine(HttpRequest& request, const std::string& startLine);
 		void parseHeaders(HttpRequest& request, const std::vector<std::string>& lines);
-		bool parseBody(HttpRequest& request, const std::string& bodyPart);
+		bool parseBody(HttpRequest& req, const std::string& bodyPart, size_t& bodyBytesConsumed);
 		static bool isValidMethod(const std::string& method);
 		static bool isValidVersion(const std::string& version);
 		void splitPathQuery(HttpRequest& req);
 		static void parseQueryString(HttpRequest& req);
-		static bool parseChunkedBody(HttpRequest& req, const std::string& bodyPart);
+		static bool parseChunkedBody(HttpRequest& req, const std::string& bodyPart, size_t& bytesConsumed);
 
 	public:
 		// bool parse(const std::string& raw, HttpRequest& request);

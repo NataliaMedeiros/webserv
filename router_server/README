@@ -13,9 +13,8 @@ Standalone, tested. **Not yet integrated with main.**
 - ConfigParser tokenizer + server/location block parser
   - Handles: root, index, listen, autoindex, methods, upload_dir, cgi, return
   - Ignores inline comments (#)
-  - Throws on unknown directives, missing braces, bad port, missing server block
-    -TO DO:(THE INVALIDATION OF MISSING SEMICOLON IS CAUSING UNPREDICTABLE BEHAVIOR 
-        for other edge cases in configuration; so TEST THEM ALL!!!)
+  - Throws on unknown directives, missing braces, bad port, missing the word "server", bad file/no file
+    
 
 ## Not yet implemented
 - Upload (multipart parsing)

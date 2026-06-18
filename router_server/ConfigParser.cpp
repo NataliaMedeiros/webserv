@@ -100,8 +100,8 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
         else if (key == "methods") 
         {
             // Read words until ;
-            while (i < tokens.size() && tokens[i] != ";")
-                loc.methods.push_back(tokens[i++]);
+            while (i < tokens.size() && tokens[i] != ";" && tokens[i] != "}")
+                loc.methods.push_back(tokens[i++]); //add the method to the methods vector and move to next token
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after methods");
         }
@@ -153,6 +153,8 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
         {
             try { srv.port = std::stoi(tokens[i++]); }//stoi() converts a string to an integer;assign the next token to port and move to next token
             catch (...) { throw std::runtime_error("invalid port number: " + tokens[i-1]); }
+            if (srv.port < 1 || srv.port > 65535)//valid port numbers are between 1 and 65535
+                throw std::runtime_error("port out of range: " + std::to_string(srv.port));
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after listen");
         }
@@ -192,6 +194,8 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
 ServerConfig ConfigParser::parse(const std::string& filename)
 {
     std::string text;
+    if (!FileSystem::isFileNormal(filename))
+        throw std::runtime_error("not a valid config file: " + filename);
     if (!FileSystem::readFile(filename, text))
         throw std::runtime_error("cannot open config file: " + filename);
 

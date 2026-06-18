@@ -1,7 +1,8 @@
 #include <string>
 #include <vector>
+#include <map>
 
-// ── Config structs (will be replaced by Person 2's parser output) ──
+// ── Config structs (will be replaced by Person 2's parser output) ── //Discuss in Meeting
 struct LocationConfig
 {
     std::string              path;
@@ -13,6 +14,7 @@ struct LocationConfig
     std::vector<std::string> methods;
     int                      redirectCode;
     std::string              redirectUrl;
+    std::map<int, std::string> errorPages;
 
     LocationConfig()
         : autoindex(false)

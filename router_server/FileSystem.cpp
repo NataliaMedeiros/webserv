@@ -92,7 +92,7 @@ bool FileSystem::writeFile(const std::string& path, const std::string& content)
 //This function extracts the file extension from the path and maps it to a corresponding MIME type string
 //MIME = Multipurpose Internet Mail Extensions
 //rfind() finds the last occurrence of a character in a string
-//application/octet-stream is a generic MIME type for "tyoe not found" binary data
+//application/octet-stream is a generic MIME type for "type not found" binary data
 
 std::string FileSystem::mimeType(const std::string& path)
 {

@@ -105,6 +105,17 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after methods");
         }
+        else if (key == "error_page")
+        {
+            int code;
+            try { code = std::stoi(tokens[i++]); }
+            catch (...) { throw std::runtime_error("invalid error_page code: " + tokens[i-1]); }
+            if (i >= tokens.size() || tokens[i] == ";" || tokens[i] == "}")
+                throw std::runtime_error("error_page missing file path");
+            loc.errorPages[code] = tokens[i++];
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after error_page");
+        }
         else if (key == "return") 
         {
             
@@ -174,6 +185,17 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
         {
             srv.locations.push_back(parseLocation(tokens, i));
             continue; // parseLocation consumed its own ;/}
+        }
+        else if (key == "error_page")
+        {
+            int code;
+            try { code = std::stoi(tokens[i++]); }
+            catch (...) { throw std::runtime_error("invalid error_page code: " + tokens[i-1]); }
+            if (i >= tokens.size() || tokens[i] == ";" || tokens[i] == "}")
+                throw std::runtime_error("error_page missing file path");
+            srv.errorPages[code] = tokens[i++];
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after error_page");
         }
         else 
         {

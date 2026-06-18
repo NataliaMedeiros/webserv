@@ -34,6 +34,12 @@ class HttpRequestParser
 			Complete,
 			BadRequest
 		};
+
+		// Maximum bytes we will buffer before giving up.
+		// Protects against clients that send endless headers (slow loris).
+		// The real limit comes from the config file (client_max_body_size).
+		// This is a hard safety ceiling — Sara's config value should be lower.
+		static const size_t MAX_BUFFER_SIZE = 8 * 1024 * 1024; // 8 MB
 		Result feed(const std::string& chunk, HttpRequest& req);
 };
 

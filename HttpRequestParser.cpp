@@ -11,6 +11,15 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 {
     _buf += chunk;
 
+	// Guard 1: buffer size limit.
+	// A client sending endless headers without \r\n\r\n would grow _buf
+	// forever. Reject early once we exceed the hard ceiling.
+	if (_buf.size() > MAX_BUFFER_SIZE)
+	{
+		_buf.clear();
+		return BadRequest;
+	}
+
 	// We need the full header section before we can do anything.
 	if (findHeaderEnd(_buf) == std::string::npos)
 		return NeedMore;
@@ -127,6 +136,10 @@ void HttpRequestParser::parseFirstLine(HttpRequest& request, const std::string& 
 		throw std::runtime_error("unsupported method: " + request.method);
 	if (!isValidVersion(request.version))
 		throw std::runtime_error("unsupported version: " + request.version);
+	// Catches empty paths and absolute URIs like http://host/path
+	// that browsers send when talking to a proxy.
+	if (request.path.empty() || request.path[0] != '/')
+		throw std::runtime_error("invalid path: " + request.path);
 	splitPathQuery(request);
 }
 
@@ -142,7 +155,10 @@ void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std
 
 		std::string key = toLower(trim(lines[i].substr(0, sep))); //before the separator
 		std::string value = trim(lines[i].substr(sep + 1)); //after the separator
-
+		// Two different values would let an attacker confuse the server about
+		// where one request ends and the next begins.
+		if (key == "content-length" && request.headers.count(key) > 0)
+			throw std::runtime_error("duplicate Content-Length header");
 		request.headers[key] = value; //add or update the key value
 	}
 }

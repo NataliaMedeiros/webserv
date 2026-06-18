@@ -180,3 +180,157 @@ void HttpRequestParser::splitPathQuery(HttpRequest& req)
 	req.path         = req.path.substr(0, qmark);
 }
 
+// / Decode %XX percent-encoding back to the original byte.
+// e.g. "%20" -> " ", "%2B" -> "+"
+/* C++ language num formulário. O navegador monta essa URL:
+GET /search?q=C%2B%2B+language HTTP/1.1
+espaço  →  +
++       →  %2B
+ã       →  %C3%A3
+/       →  %2F   (quando / é dado e não separador de path)*/
+static std::string percentDecode(const std::string& s)
+{
+	std::string out;
+	out.reserve(s.size()); //memory allocation
+
+	for (size_t i = 0; i < s.size(); i++)
+	{
+		if (s[i] == '+')
+		{
+			out += ' '; // HTML form encoding uses + for space
+		}
+		else if (s[i] == '%' && i + 2 < s.size() &&
+		         std::isxdigit(static_cast<unsigned char>(s[i + 1])) &&
+		         std::isxdigit(static_cast<unsigned char>(s[i + 2])))
+		{
+			// Convert two hex digits to a single byte.
+			char hex[3] = { s[i + 1], s[i + 2], '\0' };
+			out += static_cast<char>(std::strtol(hex, NULL, 16)); // convert from hexadecimal to ascii value
+			i += 2; // skip the two hex digits we just consumed
+		}
+		else
+		{
+			out += s[i];
+		}
+	}
+	return out;
+}
+
+// Parse "key=value&key2=value2" into req.query_params.
+// Each key and value is percent-decoded.
+void HttpRequestParser::parseQueryString(HttpRequest& req)
+{
+	if (req.query_string.empty())
+		return;
+
+	const std::string& qs = req.query_string;
+	size_t start = 0;
+
+	while (start <= qs.size())
+	{
+		// Find the end of this key=value pair.
+		size_t amp = qs.find('&', start);
+		size_t end = (amp == std::string::npos) ? qs.size() : amp;
+
+		std::string pair = qs.substr(start, end - start);
+
+		if (!pair.empty())
+		{
+			size_t eq = pair.find('=');
+			std::string key, value;
+
+			if (eq == std::string::npos)
+			{
+				// A key with no '=' — treat value as empty string.
+				key = percentDecode(pair);
+			}
+			else
+			{
+				key   = percentDecode(pair.substr(0, eq));
+				value = percentDecode(pair.substr(eq + 1));
+			}
+
+			if (!key.empty())
+				req.query_params[key] = value;
+		}
+
+		if (amp == std::string::npos)
+			break;
+		start = amp + 1;
+	}
+}
+
+// ============================================================
+//  Body parsing
+// ============================================================
+
+// Un-chunk a chunked body.
+//
+// Chunked format (each chunk):
+//   <hex-size>\r\n
+//   <data of that many bytes>\r\n
+// Terminated by:
+//   0\r\n
+//   \r\n
+//
+// Returns false if more data is needed.
+// Throws on malformed chunk encoding.
+bool HttpRequestParser::parseChunkedBody(HttpRequest& req,
+                                         const std::string& bodyPart)
+{
+	std::string decoded;
+	size_t pos = 0;
+
+	while (pos < bodyPart.size())
+	{
+		// 1. Find the end of the chunk-size line.
+		size_t crlf = bodyPart.find("\r\n", pos);
+		if (crlf == std::string::npos)
+			return false; // size line not yet arrived — need more data
+
+		// 2. Parse the chunk size (hex number, may have extensions after ';').
+		std::string sizeLine = bodyPart.substr(pos, crlf - pos);
+		size_t semi = sizeLine.find(';');
+		if (semi != std::string::npos)
+			sizeLine = sizeLine.substr(0, semi); // strip chunk extensions
+
+		sizeLine = trim(sizeLine);
+		if (sizeLine.empty())
+			throw std::runtime_error("empty chunk size line");
+
+		// Validate: must be all hex digits
+		for (size_t i = 0; i < sizeLine.size(); i++)
+			if (!std::isxdigit(static_cast<unsigned char>(sizeLine[i])))
+				throw std::runtime_error("non-hex character in chunk size");
+
+		long chunkSize = std::strtol(sizeLine.c_str(), NULL, 16);
+		if (chunkSize < 0)
+			throw std::runtime_error("negative chunk size");
+
+		pos = crlf + 2; // move past the size CRLF
+
+		// 3. Last chunk: size == 0 means end-of-body.
+		if (chunkSize == 0)
+		{
+			// The final terminating \r\n must also be present.
+			if (pos + 2 > bodyPart.size())
+				return false; // still waiting for the final CRLF
+			req.body = decoded;
+			return true;
+		}
+
+		// 4. Check that the full chunk data + trailing CRLF has arrived.
+		size_t dataEnd = pos + static_cast<size_t>(chunkSize);
+		if (dataEnd + 2 > bodyPart.size())
+			return false; // chunk data not yet complete
+
+		// 5. The two bytes after chunk data must be \r\n.
+		if (bodyPart[dataEnd] != '\r' || bodyPart[dataEnd + 1] != '\n')
+			throw std::runtime_error("missing CRLF after chunk data");
+
+		decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
+		pos = dataEnd + 2; // skip data + CRLF
+	}
+
+	return false; // fell off the end without seeing the final 0-chunk
+}

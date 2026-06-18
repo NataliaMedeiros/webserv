@@ -12,6 +12,7 @@ class HttpRequest
 		std::string method; //Take the first word from the request
 		std::string path;
 		std::string query_string;
+		std::map<std::string, std::string> query_params;
 		std::string version;
 		std::map<std::string,std::string> headers;
 		std::string body;

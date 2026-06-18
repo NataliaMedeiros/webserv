@@ -23,6 +23,8 @@ class HttpRequestParser
 		static bool isValidMethod(const std::string& method);
 		static bool isValidVersion(const std::string& version);
 		void splitPathQuery(HttpRequest& req);
+		static void parseQueryString(HttpRequest& req);
+		static bool parseChunkedBody(HttpRequest& req, const std::string& bodyPart);
 
 	public:
 		// bool parse(const std::string& raw, HttpRequest& request);

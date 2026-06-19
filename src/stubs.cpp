@@ -1,5 +1,4 @@
 #include "Http.hpp"
-#include "RequestParser.hpp"
 #include "Router.hpp"
 #include "Handler.hpp"
 #include "RouteDecision.hpp"
@@ -56,31 +55,6 @@ HttpResponse HttpResponse::methodNotAllowed() {
     return r;
 }
 
-// --- RequestParser.cpp stub (Person 2) ---
-
-RequestParser::Result RequestParser::feed(std::string_view chunk, HttpRequest& out) {
-    _buf += chunk;
-
-    size_t pos = _buf.find("\r\n\r\n");
-    if (pos == std::string::npos)
-        return Result::NeedMore;
-
-    size_t lineEnd = _buf.find("\r\n");
-    std::string requestLine = _buf.substr(0, lineEnd);
-
-    size_t s1 = requestLine.find(' ');
-    size_t s2 = requestLine.find(' ', s1 + 1);
-    if (s1 == std::string::npos || s2 == std::string::npos)
-        return Result::BadRequest;
-
-    out.method  = requestLine.substr(0, s1);
-    out.path    = requestLine.substr(s1 + 1, s2 - s1 - 1);
-    out.version = requestLine.substr(s2 + 1);
-    out.keepAlive = true;
-
-    _buf.clear();
-    return Result::Complete;
-}
 
 // --- Router.cpp stub (Person 3) ---
 
@@ -127,4 +101,15 @@ HttpResponse Handlers::handleCgi(const HttpRequest& req, const RouteDecision& d)
     (void)req;
     (void)d;
     return HttpResponse::text(200, "CGI stub - not implemented yet");
+}
+
+// PLACEHOLDER: just calls the existing free Handlers:: functions,
+// so we can test networking + parser without integrating Sara's
+// branch yet. Replace once her Handler/Router/RouteDecision come in.
+HttpResponse Handler::handle(const RouteDecision& d, const HttpRequest& req) {
+    if (d.isCgi)
+        return Handlers::handleCgi(req, d);
+    if (req.method == "POST" && d.allowUpload)
+        return Handlers::handleUpload(req, d);
+    return Handlers::serveStatic(req, d);
 }

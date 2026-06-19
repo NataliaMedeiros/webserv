@@ -3,16 +3,7 @@
 #include <unordered_map>
 #include <string_view>
 
-// NOTE: Parsed request representation.
-// This is the output of RequestParser.
-struct HttpRequest {
-  std::string method;
-  std::string path;
-  std::string version;
-  std::unordered_map<std::string, std::string> headers;
-  std::string body;
-  bool keepAlive = true; // HTTP/1.1 default (unless Connection: close)
-};
+// Friday 19th June, Noor deleted HttpRequest struct
 
 // NOTE: Response representation (structured).
 // Serialize with HttpResponse::toRaw().

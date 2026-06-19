@@ -24,12 +24,12 @@ Standalone, tested. **Not yet integrated with main.**
   - Invalid ports
   - Missing `server` 
   - Missing or unreadable config files
+- Default error pages
 
 ## Not yet implemented
 - Configuration multi-port 
 - Upload (multipart parsing)
 - CGI
-- Default error pages from config
 - Autoindex (written, not tested end-to-end)
 
 ## Integration notes

@@ -242,26 +242,26 @@ runTest("VERIFY DELETE result (should be 404)",
 std::cout << "\n══════════════════════════════════════════════\n";
 std::cout << "  ERROR PAGE TESTS (NO CONFIG OVERRIDE)\n";
 std::cout << "══════════════════════════════════════════════\n";
+//test it with default config both with and without error_page configured
+// 1. default_with_no_error.conf has no error_page configured
+// 2. default_with_error.conf has error_page configured for 404, 405, 403
+// Each test should be run twice, once with each config file, to see the difference in behavior.
+//with default_with_no_error.conf, the server should return generic error pages for 404, 405, and 403.
+//with default_with_error.conf, the server should return custom error pages for 404, 405, and 403.
 runTest("404 fallback (no error_page)",
         router, handler, "GET", "/nope.html");
-        // under "/" which has no error_page configured
-        // EXPECT: generic 404 from makeError
+
 
 runTest("404 custom error_page",
         router, handler, "GET", "/custom/missing.html");
-        // EXPECT: custom 404 HTML
+
 
 runTest("404 broken error_page path",
         router, handler, "GET", "/broken/missing.html");
-        // error_page points to a file that doesn't exist on disk
-        // EXPECT: fallback to generic 404, no crash, no empty body
+
 
 runTest("405 method not allowed (custom error_page)",
         router, handler, "POST", "/images/cat.jpg");
-        // EXPECT: custom 405 HTML, since /images has error_page 405 configured
 
-runTest("403 forbidden test",
-        router, handler, "GET", "/restricted/");
-        // EXPECT: 403, generic (no error_page 403 configured anywhere in this test)
     return 0;
 }

@@ -1,0 +1,381 @@
+========================================
+ SECTION 1 — Happy path
+========================================
+
+--- T01: minimal GET
+    result  : Complete
+    method  : GET
+    path    : /
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+--- T02: GET deep path
+    result  : Complete
+    method  : GET
+    path    : /api/v1/users/42
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+--- T03: POST single feed
+    result  : Complete
+    method  : POST
+    path    : /login
+    query   :
+    version : HTTP/1.1
+    headers :
+      content-length: 12
+      host: example.com
+    body    : [username=joe]
+
+--- T04: DELETE no body
+    result  : Complete
+    method  : DELETE
+    path    : /api/item/5
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+--- T05: multiple headers
+    result  : Complete
+    method  : GET
+    path    : /page
+    query   :
+    version : HTTP/1.1
+    headers :
+      accept: text/html
+      connection: keep-alive
+      host: example.com
+    body    : []
+
+--- T06: POST Content-Length 0
+    result  : Complete
+    method  : POST
+    path    : /ping
+    query   :
+    version : HTTP/1.1
+    headers :
+      content-length: 0
+      host: example.com
+    body    : []
+
+========================================
+ SECTION 2 — Chunked transfer encoding
+========================================
+
+--- T07: chunked single feed
+    result  : Complete
+    method  : POST
+    path    : /upload
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+      transfer-encoding: chunked
+    body    : [Hello World]
+
+--- T08: chunked across two feeds
+    result  : Complete
+    method  : POST
+    path    : /upload
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+      transfer-encoding: chunked
+    body    : [Hello]
+
+--- T09: chunked with extension
+    result  : Complete
+    method  : POST
+    path    : /upload
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+      transfer-encoding: chunked
+    body    : [Hello]
+
+--- T10: TE chunked wins over CL
+    result  : Complete
+    method  : POST
+    path    : /upload
+    query   :
+    version : HTTP/1.1
+    headers :
+      content-length: 999
+      host: example.com
+      transfer-encoding: chunked
+    body    : [Hello]
+
+========================================
+ SECTION 3 — Query string & percent-encoding
+========================================
+
+--- T11: basic query string
+    result  : Complete
+    method  : GET
+    path    : /search
+    query   : q=hello&page=2
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    params  :
+      page = 2
+      q = hello
+    body    : []
+
+--- T12: + decoded as space
+    result  : Complete
+    method  : GET
+    path    : /search
+    query   : q=hello+world
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    params  :
+      q = hello world
+    body    : []
+
+--- T13: percent-encoded query
+    result  : Complete
+    method  : GET
+    path    : /p
+    query   : name=John%20Doe&code=%2B1
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    params  :
+      code = +1
+      name = John Doe
+    body    : []
+
+--- T14: key with no value
+    result  : Complete
+    method  : GET
+    path    : /page
+    query   : debug
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    params  :
+      debug =
+    body    : []
+
+--- T15: no query string
+    result  : Complete
+    method  : GET
+    path    : /plain
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+========================================
+ SECTION 4 — NeedMore
+========================================
+
+--- T16: headers incomplete
+    result  : NeedMore
+
+--- T17: partial body
+    result  : NeedMore
+
+--- T18: only method
+    result  : NeedMore
+
+--- T19: req untouched on NeedMore
+    result  : NeedMore
+    req.method still SENTINEL : PASS
+
+--- T20: chunked body cut off
+    result  : NeedMore
+
+--- T21: chunked terminator missing
+    result  : NeedMore
+
+========================================
+ SECTION 5 — BadRequest
+========================================
+
+--- T22: only one token
+    result  : BadRequest
+
+--- T23: missing version
+    result  : BadRequest
+
+--- T24: PUT -> BadRequest
+    result  : BadRequest
+
+--- T25: HTTP/1.0 -> BadRequest
+    result  : BadRequest
+
+--- T26: empty path -> BadRequest
+    result  : BadRequest
+
+--- T27: absolute URI -> BadRequest
+    result  : BadRequest
+
+--- T28: missing Host -> BadRequest
+    result  : BadRequest
+
+--- T29: POST no CL no TE -> BadRequest
+    result  : BadRequest
+
+--- T30: CL non-numeric -> BadRequest
+    result  : BadRequest
+
+--- T31: CL negative -> BadRequest
+    result  : BadRequest
+
+--- T32: CL mixed -> BadRequest
+    result  : BadRequest
+
+--- T33: CL exceeds max -> BadRequest
+    result  : BadRequest
+
+--- T34: duplicate CL -> BadRequest
+    result  : BadRequest
+
+--- T35: buffer overflow -> BadRequest
+    result  : BadRequest
+
+--- T36: invalid chunk size -> BadRequest
+    result  : BadRequest
+
+--- T37: chunk missing CRLF -> BadRequest
+    result  : BadRequest
+
+--- T38: empty header name silently skipped
+    result  : Complete
+    method  : GET
+    path    : /
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+========================================
+ SECTION 6 — Header edge cases
+========================================
+
+--- T39: mixed-case header normalised
+    result  : Complete
+    method  : POST
+    path    : /x
+    query   :
+    version : HTTP/1.1
+    headers :
+      content-length: 5
+      host: example.com
+    body    : [hello]
+
+--- T40: trailing whitespace on CL trimmed
+    result  : Complete
+    method  : POST
+    path    : /x
+    query   :
+    version : HTTP/1.1
+    headers :
+      content-length: 5
+      host: example.com
+    body    : [hello]
+
+--- T41: leading whitespace on value trimmed
+    result  : Complete
+    method  : GET
+    path    : /
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+--- T42: header without colon skipped
+    result  : Complete
+    method  : GET
+    path    : /
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+========================================
+ SECTION 7 — Multi-feed and pipelining
+========================================
+
+--- T43: POST across three feeds
+    result  : Complete
+    method  : POST
+    path    : /login
+    query   :
+    version : HTTP/1.1
+    headers :
+      content-length: 12
+      host: example.com
+    body    : [username=joe]
+
+--- T44a: pipelining — first request
+    result  : Complete
+    method  : GET
+    path    : /first
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+--- T44b: pipelining — second request
+    result  : Complete
+    method  : GET
+    path    : /second
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+--- T45: recovers after BadRequest
+    result  : Complete
+    method  : GET
+    path    : /
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+--- T46a: trailing bytes — first request
+    result  : Complete
+    method  : POST
+    path    : /a
+    query   :
+    version : HTTP/1.1
+    headers :
+      content-length: 5
+      host: example.com
+    body    : [hello]
+
+--- T46b: trailing bytes — second request
+    result  : Complete
+    method  : GET
+    path    : /b
+    query   :
+    version : HTTP/1.1
+    headers :
+      host: example.com
+    body    : []
+
+========================================
+ ALL 46 TESTS PASSED
+========================================

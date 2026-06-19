@@ -53,6 +53,12 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 		_buf.clear();
 		return BadRequest;
 	}
+	if (tmp.headers.find("host") == tmp.headers.end())
+	{
+		_buf.clear();
+		return BadRequest;
+	}
+
 	// Only write to the caller's req when the whole request is ready.
 	req = tmp;
 	// For now, clear everything after one request
@@ -157,6 +163,8 @@ void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std
 		std::string value = trim(lines[i].substr(sep + 1)); //after the separator
 		// Two different values would let an attacker confuse the server about
 		// where one request ends and the next begins.
+		if (key.empty())
+			continue;
 		if (key == "content-length" && request.headers.count(key) > 0)
 			throw std::runtime_error("duplicate Content-Length header");
 		request.headers[key] = value; //add or update the key value
@@ -195,6 +203,8 @@ bool HttpRequestParser::parseBody(HttpRequest& req,
         iss >> length;
         if (iss.fail() || length < 0)
             throw std::runtime_error("invalid Content-Length value");
+		if (length > static_cast<long>(MAX_BUFFER_SIZE))
+    		throw std::runtime_error("Content-Length exceeds maximum");
         if (static_cast<long>(bodyPart.size()) < length)
             return false;
         req.body = bodyPart.substr(0, static_cast<size_t>(length));

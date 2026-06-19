@@ -1,6 +1,7 @@
 #include "ServerManager.hpp"
 #include <iostream>
 #include <cstdlib>
+#include "ConfigParser.hpp"
 
 // main() is the entry point of the server.
 // Usage: ./webserv [port]
@@ -13,18 +14,20 @@
 int main(int argc, char** argv)
 {
     // Read port from command line, or use 8080 as default
-    uint16_t port = 8080;
-    if (argc >= 2)
-        port = static_cast<uint16_t>(std::atoi(argv[1]));
+    // uint16_t port = 8080;
+    std::string configPath = (argc >= 2) ? argv[1] : "configs/default.config";
+    // if (argc >= 2)
+        // port = static_cast<uint16_t>(std::atoi(argv[1]));
 
     // Wrap everything in try/catch so the server never crashes silently.
     // The subject requires the server to never terminate unexpectedly.
     try
     {
-        std::cout << "Starting Webserv on port " << port << "...\n";
-        std::cout << "Open your browser at: http://localhost:" << port << "/\n";
+        ServerConfig config = ConfigParser::parse(configPath);
+        std::cout << "Starting Webserv on port " << config.port << "...\n";
+        std::cout << "Open your browser at: http://localhost:" << config.port << "/\n";
 
-        ServerManager server(port);
+        ServerManager server(config);
         server.run(); // This never returns while the server is running
     }
     catch (const std::exception& e)

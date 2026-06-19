@@ -7,6 +7,8 @@
 // This avoids raw pointers and makes cleanup easy.
 class ConnectionStore {
 public:
+  ConnectionStore(const ServerConfig& config);
+
   void add(int fd);
   void remove(int fd);
   ClientConnection* get(int fd);

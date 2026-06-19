@@ -5,6 +5,7 @@
 #include "Handler.hpp"
 #include <string>
 #include <poll.h>
+#include "ServerConfig.hpp"
 
 // NOTE: One ClientConnection represents one TCP client socket.
 // It owns buffers and parsing state.
@@ -12,7 +13,7 @@ class ClientConnection {
 public:
   enum class State { Reading, Writing, Closing };
 
-  explicit ClientConnection(int fd);
+  explicit ClientConnection(int fd, const ServerConfig& config);
 
   int fd() const { return _fd.get(); }
 

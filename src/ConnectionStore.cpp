@@ -4,13 +4,19 @@
 // It owns the ClientConnection objects - when a connection is removed,
 // the object is destroyed and the fd is automatically closed (RAII).
 
+ConnectionStore::ConnectionStore(const ServerConfig& config) : _config(config)
+{
+
+}
 // add() creates a new ClientConnection for the given fd and stores it.
+
+
 void ConnectionStore::add(int fd)
 {
     // unique_ptr means ConnectionStore owns this object.
     // When we call remove() or the store is destroyed, the ClientConnection
     // is automatically deleted and its fd is closed - no manual cleanup needed.
-    _conns[fd] = std::unique_ptr<ClientConnection>(new ClientConnection(fd));
+    _conns[fd] = std::unique_ptr<ClientConnection>(new ClientConnection(fd, _config));
 }
 
 // remove() deletes the ClientConnection for the given fd.

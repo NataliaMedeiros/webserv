@@ -8,11 +8,20 @@
 //   _store     -> keeps track of all active client connections
 //   _loop      -> runs the poll() event loop that drives everything
 
-ServerManager::ServerManager(uint16_t port)
-    : _listener(port),          // Open server socket on this port
-      _store(),                  // Start with empty connection store
-      _loop(_listener, _store)   // Give EventLoop references to both
+// ServerManager::ServerManager(uint16_t port)
+//     : _listener(port),          // Open server socket on this port
+//       _store(),                  // Start with empty connection store
+//       _loop(_listener, _store)   // Give EventLoop references to both
+// {
+// }
+
+ServerManager::ServerManager(const ServerConfig& config) :
+        _config(config),
+        _listener(static_cast<uint16_t>(_config.port)),
+        _store(_config),
+        _loop(_listener, _store);
 {
+
 }
 
 // run() starts the server. It never returns while the server is alive.

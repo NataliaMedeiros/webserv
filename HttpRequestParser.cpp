@@ -7,6 +7,10 @@
 #include <vector>
 #include <cstdlib>
 
+static bool shouldKeepAlive(const HttpRequest& req);
+
+static std::string percentDecode(const std::string& s);
+
 HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, HttpRequest& req)
 {
     _buf += chunk;
@@ -59,6 +63,7 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 		return BadRequest;
 	}
 
+	tmp.keepAlive = shouldKeepAlive(tmp);
 	// Only write to the caller's req when the whole request is ready.
 	req = tmp;
 	// For now, clear everything after one request
@@ -390,4 +395,15 @@ bool HttpRequestParser::parseChunkedBody(HttpRequest& req,
     }
 
     return false;
+}
+
+static bool shouldKeepAlive(const HttpRequest& req)
+{
+    std::map<std::string, std::string>::const_iterator it =
+        req.headers.find("connection");
+
+    if (it == req.headers.end()) //end means that element was not finded
+        return true; //in this case is true becase en http/1.1 if don't exist a header connection it automatically means the connection should keep-alive
+
+    return HttpRequestParser::toLower(it->second) != "close"; //check what is the right object to put here
 }

@@ -58,6 +58,8 @@ RouteDecision Router::route(const HttpRequest& req) const
                 best.methods     = loc.methods;
                 best.redirectCode = loc.redirectCode;
                 best.redirectUrl  = loc.redirectUrl;
+                best.errorPages = loc.errorPages.empty() ? servConfig->errorPages : loc.errorPages;
+                //if location has no error pages configured, use the server's error pages instead
             }
         }
     }
@@ -67,6 +69,7 @@ RouteDecision Router::route(const HttpRequest& req) const
     {
         RouteDecision fallback;
         fallback.root = servConfig->root;
+        fallback.errorPages = servConfig->errorPages;
         return fallback;
     }
 

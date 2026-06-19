@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <map>
 
 // Output of Router. Tells Handler exactly what to do with this request.
 // Every field maps directly to something in LocationConfig or ServerConfig.
@@ -16,7 +17,7 @@ struct RouteDecision
     int                      redirectCode; // 0 = no redirect, 301/302 etc = redirect
     std::string              redirectUrl;  // target URL for redirect (empty if no redirect)
     std::string              locationPath; // the matched location's path, e.g. "/images"
-
+    std::map<int, std::string> errorPages;   // map of error codes to custom error page paths
     RouteDecision()
         : root("./www")
         , index("index.html")

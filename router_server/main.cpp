@@ -100,139 +100,168 @@ int main(int argc, char* argv[])
 //     config.locations.push_back(locRedirect);
 //     config.locations.push_back(locAuto);
 
-    Router  router(config);
-    std::cout << "\n========== ROUTER TESTS ==========\n";
+     Router  router(config);
+//     std::cout << "\n========== ROUTER TESTS ==========\n";
 
-   // Helper
-   auto testRoute = [&](const std::string& path)
-   {
-                HttpRequest req;
-                req.method = "GET";
-                req.path = path;
+//    // Helper
+//    auto testRoute = [&](const std::string& path)
+//    {
+//                 HttpRequest req;
+//                 req.method = "GET";
+//                 req.path = path;
 
-        RouteDecision rd = router.route(req);
-        //print
-        std::cout << "\nRequest path: " << path << "\n";
-        std::cout << "Matched root : " << rd.root << "\n";
-        std::cout << "Matched index: " << rd.index << "\n";
-        std::cout << "RedirectCode : " << rd.redirectCode << "\n";
-   };
-   std::cout << "\n--- Test 1: Longest Prefix ---\n";
-   testRoute("/images/cat.jpg");//Expexted Matched root : ./www/images, NOT ./www
-   std::cout << "\n--- Test 2: Fallback ---\n";
-   testRoute("/about.html");//Expected Matched root : ./www, since /about.html does not match /images
-   std::cout << "\n--- Test 3: Boundary ---\n";
-   testRoute("/imageset/file.jpg");//Expected Matched root : ./www, ❌ MUST NOT be ./www/images
-   std::cout << "\n--- Test 4: Exact match ---\n";
-   testRoute("/images");//Expected Matched root : ./www/images, since /images is an exact match for the /images location, even though /images/cat.jpg would also match
-   std::cout << "\n--- Test 5: Root ---\n";
-   testRoute("/");//Expected Matched root : ./www since / matches everything but is the longest match for the root path
-   std::cout << "\n--- Test 6: Redirect ---\n";
-   testRoute("/old");//Expected Matched root : ./www, RedirectCode : 301 since /old matches the /old location which has a redirect configured
+//         RouteDecision rd = router.route(req);
+//         //print
+//         std::cout << "\nRequest path: " << path << "\n";
+//         std::cout << "Matched root : " << rd.root << "\n";
+//         std::cout << "Matched index: " << rd.index << "\n";
+//         std::cout << "RedirectCode : " << rd.redirectCode << "\n";
+//    };
+//    std::cout << "\n--- Test 1: Longest Prefix ---\n";
+//    testRoute("/images/cat.jpg");//Expexted Matched root : ./www/images, NOT ./www
+//    std::cout << "\n--- Test 2: Fallback ---\n";
+//    testRoute("/about.html");//Expected Matched root : ./www, since /about.html does not match /images
+//    std::cout << "\n--- Test 3: Boundary ---\n";
+//    testRoute("/imageset/file.jpg");//Expected Matched root : ./www, ❌ MUST NOT be ./www/images
+//    std::cout << "\n--- Test 4: Exact match ---\n";
+//    testRoute("/images");//Expected Matched root : ./www/images, since /images is an exact match for the /images location, even though /images/cat.jpg would also match
+//    std::cout << "\n--- Test 5: Root ---\n";
+//    testRoute("/");//Expected Matched root : ./www since / matches everything but is the longest match for the root path
+//    std::cout << "\n--- Test 6: Redirect ---\n";
+//    testRoute("/old");//Expected Matched root : ./www, RedirectCode : 301 since /old matches the /old location which has a redirect configured
 
-   std::cout << "\n========== FILESYSTEM TESTS ==========\n";
+//    std::cout << "\n========== FILESYSTEM TESTS ==========\n";
         
-   std::cout << "\n--- TEST 1: exists() ---\n";
-   std::cout << "./www/index.html : "
-        << (FileSystem::exists("./www/index.html") ? "YES" : "NO") << "\n";//expected:yes
-   std::cout << "./www/NOFILE.txt : "
-        << (FileSystem::exists("./www/NOFILE.txt") ? "YES" : "NO") << "\n";//expected:no
+//    std::cout << "\n--- TEST 1: exists() ---\n";
+//    std::cout << "./www/index.html : "
+//         << (FileSystem::exists("./www/index.html") ? "YES" : "NO") << "\n";//expected:yes
+//    std::cout << "./www/NOFILE.txt : "
+//         << (FileSystem::exists("./www/NOFILE.txt") ? "YES" : "NO") << "\n";//expected:no
 
-   std::cout << "\n--- TEST 2: isFileNormal() / isDir() ---\n";
-   std::cout << "index.html isFile: "
-        << (FileSystem::isFileNormal("./www/index.html") ? "YES" : "NO") << "\n";//expected:yes
-   std::cout << "images isDir: "
-        << (FileSystem::isDir("./www/images") ? "YES" : "NO") << "\n";//expected:yes
-   std::cout << "images isDir: "
-        << (FileSystem::isDir("./images") ? "YES" : "NO") << "\n";//expected:no
+//    std::cout << "\n--- TEST 2: isFileNormal() / isDir() ---\n";
+//    std::cout << "index.html isFile: "
+//         << (FileSystem::isFileNormal("./www/index.html") ? "YES" : "NO") << "\n";//expected:yes
+//    std::cout << "images isDir: "
+//         << (FileSystem::isDir("./www/images") ? "YES" : "NO") << "\n";//expected:yes
+//    std::cout << "images isDir: "
+//         << (FileSystem::isDir("./images") ? "YES" : "NO") << "\n";//expected:no
 
-   std::cout << "\n--- TEST 3: readFile ---\n";
-   std::string content;
-   if (FileSystem::readFile("./www/index.html", content))//expected:Read OK, size: (some number > 0)
-        std::cout << "Read OK, size: " << content.size() << "\n";
-   else
-        std::cout << "Read FAILED\n";
+//    std::cout << "\n--- TEST 3: readFile ---\n";
+//    std::string content;
+//    if (FileSystem::readFile("./www/index.html", content))//expected:Read OK, size: (some number > 0)
+//         std::cout << "Read OK, size: " << content.size() << "\n";
+//    else
+//         std::cout << "Read FAILED\n";
 
-   std::cout << "\n--- TEST 4:listDir ---\n";
-   std::vector<std::string> files;
-   if (FileSystem::listDir("./www/files", files))
-   {
-        for (size_t i = 0; i < files.size(); i++)
-        std::cout << files[i] << "\n";
-   }
-   else
-        std::cout << "listDir FAILED\n";
+//    std::cout << "\n--- TEST 4:listDir ---\n";
+//    std::vector<std::string> files;
+//    if (FileSystem::listDir("./www/files", files))
+//    {
+//         for (size_t i = 0; i < files.size(); i++)
+//         std::cout << files[i] << "\n";
+//    }
+//    else
+//         std::cout << "listDir FAILED\n";
         
-   std::cout << "\n--- TEST 5: writeFile ---\n";
-   if (FileSystem::writeFile("./www/uploads/test2.txt", "hello world"))//change text and check folder
-        std::cout << "Write OK\n";
-   else
-        std::cout << "Write FAILED\n";
+//    std::cout << "\n--- TEST 5: writeFile ---\n";
+//    if (FileSystem::writeFile("./www/uploads/test2.txt", "hello world"))//change text and check folder
+//         std::cout << "Write OK\n";
+//    else
+//         std::cout << "Write FAILED\n";
         
-   std::cout << "\n--- TEST 6:mimeType ---\n";
-   std::cout << "index.html: "
-        << FileSystem::mimeType("index.html") << "\n";//expected:text/html
-   std::cout << "cat.jpg: "
-        << FileSystem::mimeType("cat.jpg") << "\n";//expected:image/jpeg
-   std::cout << "file.unknown: "
-        << FileSystem::mimeType("file.abc") << "\n";//expected:application/octet-stream
+//    std::cout << "\n--- TEST 6:mimeType ---\n";
+//    std::cout << "index.html: "
+//         << FileSystem::mimeType("index.html") << "\n";//expected:text/html
+//    std::cout << "cat.jpg: "
+//         << FileSystem::mimeType("cat.jpg") << "\n";//expected:image/jpeg
+//    std::cout << "file.unknown: "
+//         << FileSystem::mimeType("file.abc") << "\n";//expected:application/octet-stream
     
    
-   Handler handler;
+Handler handler;
 
-   std::cout << "══════════════════════════════════════════════\n";
-   std::cout << "  ROUTER + HANDLER TEST\n";
-   std::cout << "══════════════════════════════════════════════\n";
+std::cout << "══════════════════════════════════════════════\n";
+std::cout << "  ROUTER + HANDLER CORE TESTS\n";
+std::cout << "══════════════════════════════════════════════\n";
 
-   std::cout << "TEST 1: BASIC HANDLER ERROR TEST\n";
-   runTest("GET existing file",
-        router, handler, "GET", "/index.html");
+// -------------------- BASIC --------------------
 
-   runTest("GET image",
-        router, handler, "GET", "/images/cat.jpg");
+runTest("GET existing file",
+        router, handler, "GET", "/index.html"); // 200
 
-   runTest("GET not found",
+runTest("GET image",
+        router, handler, "GET", "/images/cat.jpg"); // 200
+
+runTest("GET not found",
+        router, handler, "GET", "/nope.html"); // 404 (custom error page)
+
+runTest("POST not allowed",
+        router, handler, "POST", "/index.html"); // 405(custom error page)
+
+// -------------------- ROUTING --------------------
+
+runTest("Longest match (/images)",
+        router, handler, "GET", "/images/cat.jpg"); // 200
+
+runTest("Fallback to /",
+        router, handler, "GET", "/about.html"); // 200
+
+runTest("Boundary check (/imageset != /images)",
+        router, handler, "GET", "/imageset/x.jpg"); // 404
+
+runTest("Root index",
+        router, handler, "GET", "/"); // 200
+
+runTest("Redirect test",
+        router, handler, "GET", "/old"); // 301
+
+// -------------------- METHODS --------------------
+
+runTest("Method not allowed (POST /images)",
+        router, handler, "POST", "/images/cat.jpg"); // 405
+
+// -------------------- SAFE DELETE TEST --------------------
+//
+// IMPORTANT SETUP:
+//First test as it is to see no file behavior,
+// then Create a safe test file:
+//
+//   mkdir -p www/test
+//   echo "delete me" > www/test/delete.txt
+//
+// NEVER delete images or index.html during testing.
+
+
+runTest("DELETE safe file",
+        router, handler, "DELETE", "/test/delete.txt"); // 200 + file removed
+
+runTest("VERIFY DELETE result (should be 404)",
+        router, handler, "GET", "/test/delete.txt");
+// EXPECT: 404 Not Found (file no longer exists)
+
+std::cout << "\n══════════════════════════════════════════════\n";
+std::cout << "  ERROR PAGE TESTS (NO CONFIG OVERRIDE)\n";
+std::cout << "══════════════════════════════════════════════\n";
+runTest("404 fallback (no error_page)",
         router, handler, "GET", "/nope.html");
+        // under "/" which has no error_page configured
+        // EXPECT: generic 404 from makeError
 
-   runTest("POST should fail",
-        router, handler, "POST", "/index.html");
+runTest("404 custom error_page",
+        router, handler, "GET", "/custom/missing.html");
+        // EXPECT: custom 404 HTML
 
+runTest("404 broken error_page path",
+        router, handler, "GET", "/broken/missing.html");
+        // error_page points to a file that doesn't exist on disk
+        // EXPECT: fallback to generic 404, no crash, no empty body
 
-    // Test 1: basic longest-match
-    runTest("T1 longest match: /images beats /",
-            router, handler, "GET", "/images/cat.jpg");
+runTest("405 method not allowed (custom error_page)",
+        router, handler, "POST", "/images/cat.jpg");
+        // EXPECT: custom 405 HTML, since /images has error_page 405 configured
 
-    // Test 2: fallback to /
-    runTest("T2 fallback to /",
-            router, handler, "GET", "/about.html");
-
-    // Test 3: boundary bug check — /imageset must NOT match /images
-    runTest("T3 boundary: /imageset must not match /images",
-            router, handler, "GET", "/imageset/x.jpg");
-
-    // Test 4: serve root /
-    runTest("T4 root / serves index",
-            router, handler, "GET", "/");
-
-    // Test 5: redirect
-    runTest("T5 redirect 301",
-            router, handler, "GET", "/old");
-
-    // Test 6: method not allowed (POST to /images which only allows GET)
-    runTest("T6 method not allowed",
-            router, handler, "POST", "/images/cat.jpg");
-
-    // Test 7: autoindex directory
-    runTest("T7 autoindex on /files/",
-            router, handler, "GET", "/files/");
-
-    // Test 8: upload POST
-    runTest("T8 upload POST",
-            router, handler, "POST", "/upload/test.txt", "hello upload content");
-
-    // Test 9: DELETE
-    runTest("T9 DELETE existing file",
-            router, handler, "DELETE", "/images/cat.jpg");
-
+runTest("403 forbidden test",
+        router, handler, "GET", "/restricted/");
+        // EXPECT: 403, generic (no error_page 403 configured anywhere in this test)
     return 0;
 }

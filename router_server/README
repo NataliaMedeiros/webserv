@@ -2,19 +2,28 @@
 
 Standalone, tested. **Not yet integrated with main.**
 
-## What works
-- Router with longest-prefix matching and boundary check
-- Static file serving (GET)
-- DELETE method
+### Routing
+- Longest-prefix matching with boundary checks
 - Redirects (301/302/307/308)
-- Method restriction per route
-- Error responses (404, 405, 500)
-- Alias-style path resolution (subject's kapouet example)
-- ConfigParser tokenizer + server/location block parser
-  - Handles: root, index, listen, autoindex, methods, upload_dir, cgi, return
-  - Ignores inline comments (#)
-  - Throws on unknown directives, missing braces, bad port, missing the word "server", bad file/no file
-    
+- Per-route allowed methods
+
+### Request handling
+- Handle GET requests for static files
+- Handle DELETE requests
+- Return error responses (404, 405, 500)
+- Alias-style path resolution(subject's kapouet example)
+
+### Config parser
+- Parse server and location blocks
+- Supports: root, index, listen, autoindex, methods,
+  upload_dir, cgi, return
+- Supports inline comments (#)
+- Rejects invalid configs:
+  - Unknown directives
+  - Missing braces
+  - Invalid ports
+  - Missing `server` 
+  - Missing or unreadable config files
 
 ## Not yet implemented
 - Configuration multi-port 

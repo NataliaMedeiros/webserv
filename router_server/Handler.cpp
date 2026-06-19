@@ -132,18 +132,36 @@ std::string Handler::buildPath(const RouteDecision& rd, const HttpRequest& req)
 
     return root + remainder;
 }
-
+HttpResponse Handler::makeErrorWithConfig(const RouteDecision& rd, int code, const std::string& message)
+{
+    auto it = rd.errorPages.find(code);
+    if (it != rd.errorPages.end())
+    {
+        std::string content;
+        if (FileSystem::readFile(it->second, content))
+        {
+            HttpResponse res;
+            res.status = code;
+            res.reason = message;
+            res.body = content;
+            res.headers["Content-Type"] = "text/html";
+            return res;
+        }
+        // file path was configured but couldn't be read — fall through to default
+    }
+    return makeError(code, message);
+}
 // ─────────────────────────────────────────────
 // Static file (GET)
 // ─────────────────────────────────────────────
-HttpResponse Handler::handleStaticFile(const std::string& fullPath)
+HttpResponse Handler::handleStaticFile(const RouteDecision& rd, const std::string& fullPath)
 {
     if (!FileSystem::exists(fullPath))
-        return makeError(404, "Not Found");
+        return makeErrorWithConfig(rd, 404, "Not Found");
 
     std::string content;
     if (!FileSystem::readFile(fullPath, content))
-        return makeError(500, "Could not read file");
+        return makeErrorWithConfig(rd, 500, "Could not read file");
 
     HttpResponse res;
     res.body = content;
@@ -157,19 +175,20 @@ HttpResponse Handler::handleStaticFile(const std::string& fullPath)
 //
 // 204 No Content is the standard response for a successful delete
 // when there is nothing useful to return in the body.
-HttpResponse Handler::handleDelete(const std::string& fullPath)
+HttpResponse Handler::handleDelete(const RouteDecision& rd, const std::string& fullPath)
 {
     if (!FileSystem::exists(fullPath))
-        return makeError(404, "Not Found");
+        return makeErrorWithConfig(rd, 404, "Not Found");
 
     if (std::remove(fullPath.c_str()) != 0)
-        return makeError(500, "Could not delete file");
+        return makeErrorWithConfig(rd, 500, "Could not delete file");
 
     HttpResponse res;
     res.status = 204;
     res.reason = "No Content";
     return res;
 }
+
 
 HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
 {
@@ -178,7 +197,7 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
     if (rd.redirectCode != 0)
         return handleRedirect(rd);
     if (!isMethodAllowed(rd, req.method))
-        return makeError(405, "Method Not Allowed");
+        return makeErrorWithConfig(rd, 405, "Method Not Allowed");
     std::string fullPath = buildPath(rd, req);
     if (FileSystem::isDir(fullPath))//if the path is a directory we serve the index file if it exists, otherwise return 403
     {
@@ -188,16 +207,16 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
         withIndex += rd.index;//append the index filename to the directory path
 
         if (FileSystem::isFileNormal(withIndex))
-            return handleStaticFile(withIndex);
+            return handleStaticFile(rd, withIndex);
 
-        return makeError(403, "Forbidden");
+        return makeErrorWithConfig(rd, 403, "Forbidden");
     }
     if (req.method == "GET")
-        return handleStaticFile(fullPath);
+        return handleStaticFile(rd, fullPath);
     if (req.method == "DELETE")
-        return handleDelete(fullPath);
+        return handleDelete(rd, fullPath);
     // POST with upload, CGI, etc. — not implemented yet
-    return makeError(405, "Method Not Allowed");
+    return makeErrorWithConfig(rd, 405, "Method Not Allowed");
 }
 
 //BIIGER VERSION

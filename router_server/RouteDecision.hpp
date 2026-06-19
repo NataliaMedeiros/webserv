@@ -18,7 +18,7 @@ struct RouteDecision
     std::string              redirectUrl;  // target URL for redirect (empty if no redirect)
     std::string              locationPath; // the matched location's path, e.g. "/images"
     std::map<int, std::string> errorPages;   // map of error codes to custom error page paths
-    RouteDecision()
+    RouteDecision()//setting default values for the fields in case they are not set by the configuration file
         : root("./www")
         , index("index.html")
         , autoindex(false)

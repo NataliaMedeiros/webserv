@@ -4,6 +4,7 @@
 #include <string_view>
 
 // Friday 19th June, Noor deleted HttpRequest struct
+// Thalk with Noor about rename this file to the class name
 
 // NOTE: Response representation (structured).
 // Serialize with HttpResponse::toRaw().

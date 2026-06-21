@@ -21,7 +21,7 @@ SRCS =	src/main.cpp \
 		src/stubs.cpp \
 		src/HttpRequestParser.cpp \
 		src/ConfigParser.cpp \
-		src/FileSystem \
+		src/FileSystem.cpp \
 		src/Handler.cpp \
 		src/Router.cpp
 

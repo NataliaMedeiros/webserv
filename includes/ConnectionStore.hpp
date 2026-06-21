@@ -2,6 +2,7 @@
 #include "ClientConnection.hpp"
 #include <map>
 #include <memory>
+#include "ServerConfig.hpp"
 
 // NOTE: Keeps ownership of all connected clients.
 // This avoids raw pointers and makes cleanup easy.
@@ -18,4 +19,6 @@ public:
 
 private:
   std::map<int, std::unique_ptr<ClientConnection>> _conns;
+
+  ServerConfig _config;
 };

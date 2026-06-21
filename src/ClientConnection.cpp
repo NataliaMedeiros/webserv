@@ -85,7 +85,7 @@ void ClientConnection::onReadable()
                 handleRequest(req);
 
                 // After sending the response, keep the connection open if the browser wants to
-                _state = req.keepAlive ? State::Reading : State::Closing;
+                // _state = req.keepAlive ? State::Reading : State::Closing;
                 return;
             }
 

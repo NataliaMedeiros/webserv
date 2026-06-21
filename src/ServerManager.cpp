@@ -19,7 +19,7 @@ ServerManager::ServerManager(const ServerConfig& config) :
         _config(config),
         _listener(static_cast<uint16_t>(_config.port)),
         _store(_config),
-        _loop(_listener, _store);
+        _loop(_listener, _store)
 {
 
 }

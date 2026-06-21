@@ -16,7 +16,7 @@
 //   Writing -> Closing  : response fully sent, connection: close
 //   Reading -> Closing  : browser disconnected or sent a bad request
 
-ClientConnection::ClientConnection(int fd, const ServerConfig& config) : _fd(fd) _router(config)
+ClientConnection::ClientConnection(int fd, const ServerConfig& config) : _fd(fd), _router(config)
 {
     // Start in Reading state - we always wait for the browser to speak first
 }

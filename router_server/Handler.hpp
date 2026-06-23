@@ -16,12 +16,15 @@ class Handler
         HttpResponse handleStaticFile(const RouteDecision& rd,const std::string& fullPath);
         HttpResponse handleRedirect(const RouteDecision& rd);
         HttpResponse handleDelete(const RouteDecision& rd, const std::string& fullPath);
+        HttpResponse handleUpload(const RouteDecision& rd, const HttpRequest& req);
+          
 
     // Helpers
         std::string  buildPath(const RouteDecision& rd, const HttpRequest& req);
         bool         isMethodAllowed(const RouteDecision& rd, const std::string& method);
         HttpResponse makeError(int code, const std::string& message);
         HttpResponse makeErrorWithConfig(const RouteDecision& rd, int code, const std::string& message);
+        bool         parseMultipart(const HttpRequest& req, std::string& outFilename, std::string& outFileContent);
 };
 
 #endif

@@ -17,6 +17,134 @@
 //   5. Method-specific handling  → GET serves file, DELETE removes it
 //   6. Nothing matched           → 405
 
+// ─────────────────────────────────────────────
+// Error response with a tiny HTML body
+// ─────────────────────────────────────────────
+
+HttpResponse Handler::makeError(int code, const std::string& message)
+{
+    HttpResponse res;
+    res.status = code;
+    res.reason = message;
+
+    std::string body = "<html><body><h1>"
+                     + std::to_string(code) + " " + message
+                     + "</h1></body></html>\n";
+    res.body = body;
+    res.headers["Content-Type"] = "text/html";
+    return res;
+}
+// ─────────────────────────────────────────────
+// Upload (multipart/form-data POST)
+// ─────────────────────────────────────────────
+
+//Parses a multipart/form-data request body to extract the uploaded file's name and content
+//The function looks for the "boundary" string in the Content-Type header, 
+//then finds the part of the body that contains the file data. 
+//It extracts the filename from the Content-Disposition header and the file content from the body,
+//returning them via outFilename and outFileContent. If any step fails (e.g., missing headers, malformed body), it returns false.
+//example of a multipart/form-data request body:
+//--boundary
+//Content-Disposition: form-data; name="file"; filename="example.txt"
+//Content-Type: text/plain
+//This is the content of the file.
+//--boundary--
+//
+//return example:
+//outFilename = "example.txt"
+//outFileContent = "This is the content of the file."
+
+
+//auto deduces the type of the variable from the return type of req.headers.find(), which is 
+//std::unordered_map<std::string, std::string>::iterator here
+//find() searches the container for the key----(content-type) 
+//If it finds the key ---- it returns an iterator to that element. 
+//If it doesn’t find it --- it returns end().
+
+
+bool Handler::parseMultipart(const HttpRequest& req, std::string& outFilename, std::string& outFileContent)
+{
+    auto it = req.headers.find("Content-Type");
+    if (it == req.headers.end())
+        return false;
+
+    std::string contentType = it->second;//get the value of the content-type header
+    size_t boundaryPos = contentType.find("boundary=");//find the position of the boundary parameter in the content-type header
+    if (boundaryPos == std::string::npos)//if the boundary parameter is not found in the content-type header
+        return false;
+
+    std::string boundary = "--" + contentType.substr(boundaryPos + 9);//extract the boundary string from the content-type header, adding the leading "--" as per the multipart/form-data specification
+
+    // Find the beginning and end of the part containing the file data
+    size_t partStart = req.body.find(boundary);
+    if (partStart == std::string::npos)//if the boundary is not found in the request body
+        return false;
+    partStart += boundary.size();//move past the boundary to the start of the part
+
+    size_t partEnd = req.body.find(boundary, partStart);//find the next boundary after the start of the part
+    if (partEnd == std::string::npos)
+        return false;
+
+    std::string part = req.body.substr(partStart, partEnd - partStart);//extract the part of the request body between the two boundaries
+
+    // Extract filename from Content-Disposition header
+    size_t fnPos = part.find("filename=\"");
+    if (fnPos == std::string::npos)
+        return false;
+    fnPos += 10;//move past the "filename=\"" to the start of the filename
+    size_t fnEnd = part.find("\"", fnPos);//find the end of the filename by looking for the next quote after the start of the filename
+    outFilename = part.substr(fnPos, fnEnd - fnPos);//extract the filename from the part
+
+    // Body starts after the blank line (\r\n\r\n) following the headers
+    size_t bodyStart = part.find("\r\n\r\n");
+    if (bodyStart == std::string::npos)
+        return false;
+    bodyStart += 4;
+
+    // Strip trailing \r\n before the next boundary
+    size_t bodyEnd = part.size();
+    if (bodyEnd >= 2 && part[bodyEnd - 1] == '\n' && part[bodyEnd - 2] == '\r')
+        bodyEnd -= 2;
+
+    outFileContent = part.substr(bodyStart, bodyEnd - bodyStart);
+    return true;
+}
+
+HttpResponse Handler::handleUpload(const RouteDecision& rd, const HttpRequest& req)
+{
+
+    if (rd.uploadPath.empty())
+        return makeError(400, "No upload path configured");
+
+    std::string filename, content;
+    if (!parseMultipart(req, filename, content))
+        return makeError(400, "Malformed multipart body");
+
+    if (filename.empty())
+        return makeError(400, "No filename provided");
+    
+    if (filename.find("..") != std::string::npos ||
+            filename.find('/') != std::string::npos ||
+            filename.find('\\') != std::string::npos)
+    {
+        return makeError(400, "Invalid filename");
+    }
+
+    std::string dest = rd.uploadPath;
+    if (!dest.empty() && dest.back() != '/')//if the upload path doesn't already end with a slash
+        dest += '/';//add a slash so we don't get double slashes
+    dest += filename;//append the filename to the upload path to get the full destination path
+
+    if (!FileSystem::writeFile(dest, content))
+        return makeError(500, "Could not write upload");
+
+    HttpResponse res;
+    res.status = 201;
+    res.reason = "Created";
+    res.headers["Location"] = "/" + filename;
+    res.headers["Content-Length"] = "0";
+    return res;
+}
 
 // ─────────────────────────────────────────────
 // Redirect (301/302/307/308)
@@ -69,22 +197,7 @@ bool Handler::isMethodAllowed(const RouteDecision& rd, const std::string& method
     return false;
 }
 
-// ─────────────────────────────────────────────
-// Error response with a tiny HTML body
-// ─────────────────────────────────────────────
-HttpResponse Handler::makeError(int code, const std::string& message)
-{
-    HttpResponse res;
-    res.status = code;
-    res.reason = message;
 
-    std::string body = "<html><body><h1>"
-                     + std::to_string(code) + " " + message
-                     + "</h1></body></html>\n";
-    res.body = body;
-    res.headers["Content-Type"] = "text/html";
-    return res;
-}
 
 // ─────────────────────────────────────────────
 // Path building
@@ -199,6 +312,8 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
     if (!isMethodAllowed(rd, req.method))
         return makeErrorWithConfig(rd, 405, "Method Not Allowed");
     std::string fullPath = buildPath(rd, req);
+    if (req.method == "POST" && !rd.uploadPath.empty())
+        return handleUpload(rd, req);
     if (FileSystem::isDir(fullPath))//if the path is a directory we serve the index file if it exists, otherwise return 403
     {
         std::string withIndex = fullPath;
@@ -215,7 +330,6 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
         return handleStaticFile(rd, fullPath);
     if (req.method == "DELETE")
         return handleDelete(rd, fullPath);
-    // POST with upload, CGI, etc. — not implemented yet
     return makeErrorWithConfig(rd, 405, "Method Not Allowed");
 }
 

@@ -1,4 +1,5 @@
 #include "Router.hpp"
+#include <iostream>
 
 // Router constructor.
 // Stores a pointer to the ServerConfig so we can read locations during routing.
@@ -72,6 +73,5 @@ RouteDecision Router::route(const HttpRequest& req) const
         fallback.errorPages = servConfig->errorPages;
         return fallback;
     }
-
     return best;
 }

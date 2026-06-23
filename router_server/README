@@ -26,11 +26,15 @@ Standalone, tested. **Not yet integrated with main.**
   - Missing or unreadable config files
 - Default error pages
 
+### Autoindex
+- tested with default_auto_off.conf (with and without index.html)
+- tested with default_auto_on.conf
+
+### Upload
+
 ## Not yet implemented
 - Configuration multi-port 
-- Upload (multipart parsing)
 - CGI
-- Autoindex (written, not tested end-to-end)
 
 ## Integration notes
 My `RouteDecision` has extra fields Person 1's placeholder doesn't:

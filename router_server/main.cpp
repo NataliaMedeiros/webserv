@@ -11,7 +11,7 @@ static void printResponse(const HttpResponse& res)
     std::cout << "  Status : " << res.status << " " << res.reason << "\n";
 //     for (const auto& h : res.headers)
 //         std::cout << "  Header : " << h.first << ": " << h.second << "\n";
-    if (!res.body.empty() && res.body.size() < 200)
+    if (!res.body.empty() )
         std::cout << "  Body   : " << res.body << "\n";
     else if (!res.body.empty())
         std::cout << "  Body   : (" << res.body.size() << " bytes)\n";
@@ -36,7 +36,7 @@ static void runTest(const std::string& label,
     std::cout << "  Matched root   : " << rd.root << "\n";
 //     std::cout << "  Matched index  : " << rd.index << "\n";
 //     std::cout << "  Redirect code  : " << rd.redirectCode << "\n";
-//     std::cout << "  Autoindex      : " << (rd.autoindex ? "yes" : "no") << "\n";
+     std::cout << "  Autoindex      : " << (rd.autoindex ? "yes" : "no") << "\n";
 
     HttpResponse res = handler.handle(rd, req);
     printResponse(res);
@@ -182,283 +182,300 @@ int main(int argc, char* argv[])
    
 Handler handler;
 
-std::cout << "══════════════════════════════════════════════\n";
-std::cout << "  ROUTER + HANDLER CORE TESTS\n";
-std::cout << "══════════════════════════════════════════════\n";
+// std::cout << "══════════════════════════════════════════════\n";
+// std::cout << "  ROUTER + HANDLER CORE TESTS\n";
+// std::cout << "══════════════════════════════════════════════\n";
 
-// -------------------- BASIC --------------------
+// // -------------------- BASIC --------------------
 
-runTest("GET existing file",
-        router, handler, "GET", "/index.html"); // 200
+// runTest("GET existing file",
+//         router, handler, "GET", "/index.html"); // 200
 
-runTest("GET image",
-        router, handler, "GET", "/images/cat.jpg"); // 200
+// runTest("GET image",
+//         router, handler, "GET", "/images/cat.jpg"); // 200
 
-runTest("GET not found",
-        router, handler, "GET", "/nope.html"); // 404 (custom error page)
+// runTest("GET not found",
+//         router, handler, "GET", "/nope.html"); // 404 (custom error page)
 
-runTest("POST not allowed",
-        router, handler, "POST", "/index.html"); // 405(custom error page)
+// runTest("POST not allowed",
+//         router, handler, "POST", "/index.html"); // 405(custom error page)
 
-// -------------------- ROUTING --------------------
+// // -------------------- ROUTING --------------------
 
-runTest("Longest match (/images)",
-        router, handler, "GET", "/images/cat.jpg"); // 200
+// runTest("Longest match (/images)",
+//         router, handler, "GET", "/images/cat.jpg"); // 200
 
-runTest("Fallback to /",
-        router, handler, "GET", "/about.html"); // 200
+// runTest("Fallback to /",
+//         router, handler, "GET", "/about.html"); // 200
 
-runTest("Boundary check (/imageset != /images)",
-        router, handler, "GET", "/imageset/x.jpg"); // 404
+// runTest("Boundary check (/imageset != /images)",
+//         router, handler, "GET", "/imageset/x.jpg"); // 404
 
-runTest("Root index",
-        router, handler, "GET", "/"); // 200
+// runTest("Root index",
+//         router, handler, "GET", "/"); // 200
 
-runTest("Redirect test",
-        router, handler, "GET", "/old"); // 301
+// runTest("Redirect test",
+//         router, handler, "GET", "/old"); // 301
 
-// -------------------- METHODS --------------------
+// // -------------------- METHODS --------------------
 
-runTest("Method not allowed (POST /images)",
-        router, handler, "POST", "/images/cat.jpg"); // 405
+// runTest("Method not allowed (POST /images)",
+//         router, handler, "POST", "/images/cat.jpg"); // 405
 
-// -------------------- SAFE DELETE TEST --------------------
-//
-// IMPORTANT SETUP:
-//First test as it is to see no file behavior,
-// then Create a safe test file:
-//
-//   mkdir -p www/test
-//   echo "delete me" > www/test/delete.txt
-//
-// NEVER delete images or index.html during testing.
+// // -------------------- SAFE DELETE TEST --------------------
+// //
+// // IMPORTANT SETUP:
+// //First test as it is to see no file behavior,
+// // then Create a safe test file:
+// //
+// //   mkdir -p www/test
+// //   echo "delete me" > www/test/delete.txt
+// //
+// // NEVER delete images or index.html during testing.
 
 
-runTest("DELETE safe file",
-        router, handler, "DELETE", "/test/delete.txt"); // 200 + file removed
+// runTest("DELETE safe file",
+//         router, handler, "DELETE", "/test/delete.txt"); // 200 + file removed
 
-runTest("VERIFY DELETE result (should be 404)",
-        router, handler, "GET", "/test/delete.txt");
-// EXPECT: 404 Not Found (file no longer exists)
+// runTest("VERIFY DELETE result (should be 404)",
+//         router, handler, "GET", "/test/delete.txt");
+// // EXPECT: 404 Not Found (file no longer exists)
+
+// std::cout << "\n══════════════════════════════════════════════\n";
+// std::cout << "  ERROR PAGE TESTS (NO CONFIG OVERRIDE)\n";
+// std::cout << "══════════════════════════════════════════════\n";
+// //test it with default config both with and without error_page configured
+// // 1. default_with_no_error.conf has no error_page configured
+// // 2. default_with_error.conf has error_page configured for 404, 405, 403
+// // Each test should be run twice, once with each config file, to see the difference in behavior.
+// //with default_with_no_error.conf, the server should return generic error pages for 404, 405, and 403.
+// //with default_with_error.conf, the server should return custom error pages for 404, 405, and 403.
+// runTest("404 fallback (no error_page)",
+//         router, handler, "GET", "/nope.html");
+
+
+// runTest("404 custom error_page",
+//         router, handler, "GET", "/custom/missing.html");
+
+
+// runTest("404 broken error_page path",
+//         router, handler, "GET", "/broken/missing.html");
+
+
+// runTest("405 method not allowed (custom error_page)",
+//         router, handler, "POST", "/images/cat.jpg");
+
+// std::cout << "\n══════════════════════════════════════════════\n";
+// std::cout << "  UPLOAD TESTS\n";
+// std::cout << "══════════════════════════════════════════════\n";
+
+// runTest("UPLOAD file (multipart)",
+//         router,
+//         handler,
+//         "POST",
+//         "/upload",
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file\"; filename=\"testing.txt\"\r\n"
+//         "Content-Type: text/plain\r\n"
+//         "\r\n"
+//         "Hello from upload test\n"
+//         "------test123--\r\n");
+// //expect:  Request: POST /upload
+//   //Status : 201 Created
+
+// runTest("UPLOAD - multiple files (should handle only first or fail cleanly)",
+//         router,
+//         handler,
+//         "POST",
+//         "/upload",
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"\r\n"
+//         "\r\n"
+//         "AAA\r\n"
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file2\"; filename=\"b.txt\"\r\n"
+//         "\r\n"
+//         "BBB\r\n"
+//         "------test123--\r\n");
+
+// // EXPECT:
+// // - either only a.txt is created
+// // - or only first file is parsed
+// // - b.txt should NOT reliably exist
+
+// runTest("UPLOAD - missing filename",
+//         router,
+//         handler,
+//         "POST",
+//         "/upload",
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file\"\r\n"
+//         "\r\n"
+//         "Hello\r\n"
+//         "------test123--\r\n");
+
+// // EXPECT:
+// // 400 Bad Request
+// // reason: No filename provided
+// runTest("UPLOAD - path traversal attempt",
+//         router,
+//         handler,
+//         "POST",
+//         "/upload",
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file\"; filename=\"../../evil.txt\"\r\n"
+//         "\r\n"
+//         "HACKED\r\n"
+//         "------test123--\r\n");
+
+// // EXPECT:
+// // 400 OR rejected upload
+// // MUST NOT create file outside ./www/uploads
+// // (NO ../../ allowed)
+
+// HttpRequest req;
+// req.method = "POST";
+// req.path = "/upload";
+// req.headers["Content-Type"] = "multipart/form-data"; // no boundary
+// req.body = "randomdata";
+
+// runTest("UPLOAD - missing boundary",
+//         router,
+//         handler,
+//         req.method,
+//         req.path,
+//         req.body);
+
+// // EXPECT:
+// // 400 Malformed multipart body
+
+// req.method = "POST";
+// req.path = "/upload";
+// req.headers["Content-Type"] = "text/plain";
+// req.body = "hello";
+
+// runTest("UPLOAD - wrong content-type",
+//         router,
+//         handler,
+//         req.method,
+//         req.path,
+//         req.body);
+
+// // EXPECT:
+// // 400 Malformed multipart body
+
+// std::string bigContent(50000, 'A');
+
+// runTest("UPLOAD - large file",
+//         router,
+//         handler,
+//         "POST",
+//         "/upload",
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file\"; filename=\"big.txt\"\r\n"
+//         "\r\n"
+//         + bigContent +
+//         "\r\n------test123--\r\n");
+
+// // EXPECT:
+// // 201 Created
+// // file created successfully
+// // no crash / no truncation
+// runTest("UPLOAD - empty filename",
+//         router,
+//         handler,
+//         "POST",
+//         "/upload",
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file\"; filename=\"\"\r\n"
+//         "\r\n"
+//         "data\r\n"
+//         "------test123--\r\n");
+
+// // EXPECT:
+// // 400 No filename provided
+// runTest("UPLOAD - normal but suspicious filename",
+//         router,
+//         handler,
+//         "POST",
+//         "/upload",
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file\"; filename=\"file..txt\"\r\n"
+//         "\r\n"
+//         "data\r\n"
+//         "------test123--\r\n");
+
+// // EXPECT:
+// // ideally reject OR sanitize filename
+// // SHOULD NOT break server
+// runTest("UPLOAD - overwrite existing file",
+//         router,
+//         handler,
+//         "POST",
+//         "/upload",
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n"
+//         "\r\n"
+//         "FIRST VERSION\r\n"
+//         "------test123--\r\n");
+
+// // run again with same filename
+
+// runTest("UPLOAD - overwrite same file again",
+//         router,
+//         handler,
+//         "POST",
+//         "/upload",
+//         "------test123\r\n"
+//         "Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n"
+//         "\r\n"
+//         "SECOND VERSION\r\n"
+//         "------test123--\r\n");
+// // EXPECT:
+// // - file is overwritten with new content
+// runTest("UPLOAD - GET should NOT trigger upload",
+//         router,
+//         handler,
+//         "GET",
+//         "/upload");std::cout << "\n══════════════════════════════════════════════\n";
+
 
 std::cout << "\n══════════════════════════════════════════════\n";
-std::cout << "  ERROR PAGE TESTS (NO CONFIG OVERRIDE)\n";
-std::cout << "══════════════════════════════════════════════\n";
-//test it with default config both with and without error_page configured
-// 1. default_with_no_error.conf has no error_page configured
-// 2. default_with_error.conf has error_page configured for 404, 405, 403
-// Each test should be run twice, once with each config file, to see the difference in behavior.
-//with default_with_no_error.conf, the server should return generic error pages for 404, 405, and 403.
-//with default_with_error.conf, the server should return custom error pages for 404, 405, and 403.
-runTest("404 fallback (no error_page)",
-        router, handler, "GET", "/nope.html");
-
-
-runTest("404 custom error_page",
-        router, handler, "GET", "/custom/missing.html");
-
-
-runTest("404 broken error_page path",
-        router, handler, "GET", "/broken/missing.html");
-
-
-runTest("405 method not allowed (custom error_page)",
-        router, handler, "POST", "/images/cat.jpg");
-
-std::cout << "\n══════════════════════════════════════════════\n";
-std::cout << "  UPLOAD TESTS\n";
+std::cout << "  AUTOINDEX TESTS\n";
 std::cout << "══════════════════════════════════════════════\n";
 
-runTest("UPLOAD file (multipart)",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"testing.txt\"\r\n"
-        "Content-Type: text/plain\r\n"
-        "\r\n"
-        "Hello from upload test\n"
-        "------test123--\r\n");
-//expect:  Request: POST /upload
-  //Status : 201 Created
-
-runTest("UPLOAD - multiple files (should handle only first or fail cleanly)",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"\r\n"
-        "\r\n"
-        "AAA\r\n"
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file2\"; filename=\"b.txt\"\r\n"
-        "\r\n"
-        "BBB\r\n"
-        "------test123--\r\n");
-
-// EXPECT:
-// - either only a.txt is created
-// - or only first file is parsed
-// - b.txt should NOT reliably exist
-
-runTest("UPLOAD - missing filename",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file\"\r\n"
-        "\r\n"
-        "Hello\r\n"
-        "------test123--\r\n");
-
-// EXPECT:
-// 400 Bad Request
-// reason: No filename provided
-runTest("UPLOAD - path traversal attempt",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"../../evil.txt\"\r\n"
-        "\r\n"
-        "HACKED\r\n"
-        "------test123--\r\n");
-
-// EXPECT:
-// 400 OR rejected upload
-// MUST NOT create file outside ./www/uploads
-// (NO ../../ allowed)
-
-HttpRequest req;
-req.method = "POST";
-req.path = "/upload";
-req.headers["Content-Type"] = "multipart/form-data"; // no boundary
-req.body = "randomdata";
-
-runTest("UPLOAD - missing boundary",
-        router,
-        handler,
-        req.method,
-        req.path,
-        req.body);
-
-// EXPECT:
-// 400 Malformed multipart body
-
-req.method = "POST";
-req.path = "/upload";
-req.headers["Content-Type"] = "text/plain";
-req.body = "hello";
-
-runTest("UPLOAD - wrong content-type",
-        router,
-        handler,
-        req.method,
-        req.path,
-        req.body);
-
-// EXPECT:
-// 400 Malformed multipart body
-
-std::string bigContent(50000, 'A');
-
-runTest("UPLOAD - large file",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"big.txt\"\r\n"
-        "\r\n"
-        + bigContent +
-        "\r\n------test123--\r\n");
-
-// EXPECT:
-// 201 Created
-// file created successfully
-// no crash / no truncation
-runTest("UPLOAD - empty filename",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"\"\r\n"
-        "\r\n"
-        "data\r\n"
-        "------test123--\r\n");
-
-// EXPECT:
-// 400 No filename provided
-runTest("UPLOAD - normal but suspicious filename",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"file..txt\"\r\n"
-        "\r\n"
-        "data\r\n"
-        "------test123--\r\n");
-
-// EXPECT:
-// ideally reject OR sanitize filename
-// SHOULD NOT break server
-runTest("UPLOAD - overwrite existing file",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n"
-        "\r\n"
-        "FIRST VERSION\r\n"
-        "------test123--\r\n");
-
-// run again with same filename
-
-runTest("UPLOAD - overwrite same file again",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n"
-        "\r\n"
-        "SECOND VERSION\r\n"
-        "------test123--\r\n");
-// EXPECT:
-// - file is overwritten with new content
-runTest("UPLOAD - GET should NOT trigger upload",
+runTest("GET /files",
         router,
         handler,
         "GET",
-        "/upload");
-// EXPECT:
-// - 405 Method Not Allowed
-runTest("UPLOAD - no upload_path configured",
-        router,
-        handler,
-        "POST",
-        "/somewhere-without-upload",
-        "------test123\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n"
-        "\r\n"
-        "DATA\r\n"
-        "------test123--\r\n");
-// EXPECT:
-// - 405 Method Not Allowed OR 400 No upload path configured
-runTest("UPLOAD - malformed multipart body",
-        router,
-        handler,
-        "POST",
-        "/upload",
-        "this is not multipart at all");
-// EXPECT:
-// - 400 Malformed multipart body
+        "/files");
+
+/*
+
+Run this test twice:
+
+1) ./webserv default_auto_on.conf
+
+Expected:
+- 200 OK
+- Body contains generated HTML directory listing
+- Should list files present in ./www/files
+- Should NOT return 403
+
+
+2) ./webserv default_auto_off.conf
+
+Expected if ./www/files/index.html exists:
+- 200 OK
+- Body is the contents of index.html
+
+Expected if ./www/files/index.html does NOT exist:
+- 403 Forbidden
+- Custom 403 page if configured
+*/
+
+// IMPORTANT: For autoindex off, make sure to test both cases:
+// - ./www/files/index.html exists "echo "<h1>Index</h1>" > www/files/index.html" -- 200 OK with index.html content
+// - ./www/files/index.html does NOT exist -- should give 403 Forbidden
     return 0;
 }

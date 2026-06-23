@@ -38,7 +38,6 @@ RouteDecision Router::route(const HttpRequest& req) const
         bool boundaryOk  = (locPath == "/")
                         || (uri.size() == locPath.size())
                         || (uri[locPath.size()] == '/');
-
         if (prefixMatch && boundaryOk)
         {
             if (locPath.size() > bestLen)
@@ -71,6 +70,7 @@ RouteDecision Router::route(const HttpRequest& req) const
         RouteDecision fallback;
         fallback.root = servConfig->root;
         fallback.errorPages = servConfig->errorPages;
+        fallback.autoindex = false;
         return fallback;
     }
     return best;

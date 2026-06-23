@@ -17,6 +17,7 @@ class Handler
         HttpResponse handleRedirect(const RouteDecision& rd);
         HttpResponse handleDelete(const RouteDecision& rd, const std::string& fullPath);
         HttpResponse handleUpload(const RouteDecision& rd, const HttpRequest& req);
+        HttpResponse handleAutoindex(const std::string& dirPath, const std::string& uriPath);
           
 
     // Helpers

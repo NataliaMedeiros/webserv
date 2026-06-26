@@ -34,9 +34,11 @@ static void runTest(const std::string& label,
 
     RouteDecision rd = router.route(req);
     std::cout << "  Matched root   : " << rd.root << "\n";
-//     std::cout << "  Matched index  : " << rd.index << "\n";
-//     std::cout << "  Redirect code  : " << rd.redirectCode << "\n";
+     std::cout << "  Matched index  : " << rd.index << "\n";
+     std::cout << "  Redirect code  : " << rd.redirectCode << "\n";
      std::cout << "  Autoindex      : " << (rd.autoindex ? "yes" : "no") << "\n";
+     std::cout << "cgiPass        : " << (rd.cgiPass.empty() ? "no" : rd.cgiPass) << "\n";
+     std::cout << "locationPath    : " << (rd.locationPath.empty() ? "no" : rd.locationPath) << "\n";
 
     HttpResponse res = handler.handle(rd, req);
     printResponse(res);
@@ -440,42 +442,60 @@ Handler handler;
 //         "/upload");std::cout << "\n══════════════════════════════════════════════\n";
 
 
-std::cout << "\n══════════════════════════════════════════════\n";
-std::cout << "  AUTOINDEX TESTS\n";
-std::cout << "══════════════════════════════════════════════\n";
+// std::cout << "\n══════════════════════════════════════════════\n";
+// std::cout << "  AUTOINDEX TESTS\n";
+// std::cout << "══════════════════════════════════════════════\n";
 
-runTest("GET /files",
-        router,
-        handler,
-        "GET",
-        "/files");
+// runTest("GET /files",
+//         router,
+//         handler,
+//         "GET",
+//         "/files");
 
-/*
+// /*
 
-Run this test twice:
+// Run thesse test twice:
 
-1) ./webserv default_auto_on.conf
+// 1) ./webserv default_auto_on.conf
 
-Expected:
-- 200 OK
-- Body contains generated HTML directory listing
-- Should list files present in ./www/files
-- Should NOT return 403
+// Expected:
+// - 200 OK
+// - Body contains generated HTML directory listing
+// - Should list files present in ./www/files
+// - Should NOT return 403
 
 
-2) ./webserv default_auto_off.conf
+// 2) ./webserv default_auto_off.conf
 
-Expected if ./www/files/index.html exists:
-- 200 OK
-- Body is the contents of index.html
+// Expected if ./www/files/index.html exists:
+// - 200 OK
+// - Body is the contents of index.html
 
-Expected if ./www/files/index.html does NOT exist:
-- 403 Forbidden
-- Custom 403 page if configured
-*/
+// Expected if ./www/files/index.html does NOT exist:
+// - 403 Forbidden
+// - Custom 403 page if configured
+// */
 
-// IMPORTANT: For autoindex off, make sure to test both cases:
-// - ./www/files/index.html exists "echo "<h1>Index</h1>" > www/files/index.html" -- 200 OK with index.html content
-// - ./www/files/index.html does NOT exist -- should give 403 Forbidden
-    return 0;
+// // IMPORTANT: For autoindex off, make sure to test both cases:
+// // - ./www/files/index.html exists "echo "<h1>Index</h1>" > www/files/index.html" -- 200 OK with index.html content
+// // - ./www/files/index.html does NOT exist -- should give 403 Forbidden
+
+// std::cout << "\n══════════════════════════════════════════════\n";
+// std::cout << "  CGI TESTS\n";
+// std::cout << "══════════════════════════════════════════════\n";
+
+
+runTest("CGI GET",
+     router,
+     handler,
+     "GET",
+     "/cgi/hello.py");
+    
+
+runTest("CGI missing",
+     router,
+     handler,
+     "GET",
+     "/cgi/missing.py");
+ return 0;
 }

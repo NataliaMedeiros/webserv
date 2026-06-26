@@ -4,6 +4,9 @@
 #include <string>
 #include <iostream>
 #include <algorithm>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <cstring>
 
 // ─────────────────────────────────────────────
 // Top-level dispatch
@@ -266,6 +269,88 @@ HttpResponse Handler::makeErrorWithConfig(const RouteDecision& rd, int code, con
     return makeError(code, message);
 }
 
+HttpResponse Handler::handleCgi(const RouteDecision& rd, const HttpRequest& req,
+    const std::string& fullPath)
+{
+    std::cerr << "DEBUG: START CGI\n";
+    (void)rd; // unused parameter-- will be used in future for CGI-specific config
+    std::cerr << "DEBUG: CGI fullPath = [" << fullPath << "]\n";
+    std::cerr << "DEBUG: Exists = " << FileSystem::exists(fullPath) << "\n";
+    if (!FileSystem::exists(fullPath))//if the CGI script file does not exist on disk
+        return makeError(404, "Not Found");
+    int inPipe[2];   // parent writes request body -> child reads (stdin)
+    int outPipe[2];  // child writes response -> parent reads (stdout)
+    if (pipe(inPipe) == -1 || pipe(outPipe) == -1)
+        return makeError(500, "Could not create pipes");
+    pid_t pid = fork();//fork duplicates the current process(so here ./webserver has a child)
+    if (pid == -1)
+        return makeError(500, "Fork failed");
+    if (pid == 0)// ONLY CHILD process executes this block, parent process skips it and continues after the block
+    {
+        dup2(inPipe[0], STDIN_FILENO);//replace stdin with the read end of the input pipe, so that when the CGI script reads from stdin, it gets the request body from the parent process instead of the terminal
+        dup2(outPipe[1], STDOUT_FILENO);//replace stdout with the write end of the output pipe, so that when the CGI script writes to stdout, it goes to the parent process instead of the terminal
+        close(inPipe[0]); close(inPipe[1]);
+        close(outPipe[0]); close(outPipe[1]);
+
+        std::string contentLength = std::to_string(req.body.size());//convert the size of the request body to a string, which will be used as the value for the CONTENT_LENGTH environment variable
+        std::vector<std::string> envStrings = {
+                                                "REQUEST_METHOD=" + req.method,
+                                                "CONTENT_LENGTH=" + contentLength,
+                                                "SCRIPT_FILENAME=" + fullPath,
+                                                "GATEWAY_INTERFACE=CGI/1.1",
+                                                "SERVER_PROTOCOL=HTTP/1.1",
+                                                "QUERY_STRING="
+                                                };//create a vector of strings representing the environment variables that will be passed to the CGI script. Each string is in the format "KEY=VALUE", where KEY is the name of the environment variable and VALUE is its value. These variables provide information about the request and the server to the CGI script.
+        std::vector<char*> envp;//execve() expects an array of C-style strings (char*), so we need to convert the std::string objects in envStrings to char* pointers
+        for (auto& s : envStrings) envp.push_back(const_cast<char*>(s.c_str()));//convert each std::string in envStrings to a C-style string using c_str(), then cast away the constness with const_cast<char*> so that we can store it in the envp vector. This is necessary because execve() expects non-const char* pointers for the environment variables, even though we are not modifying them.
+        envp.push_back(nullptr);
+
+        char* argv[] = { const_cast<char*>(fullPath.c_str()), nullptr };
+        std::cerr << "DEBUG::EXECUTING: " << fullPath << '\n';
+        execve(fullPath.c_str(), argv, envp.data());//execve() replaces the current process image with a new process image specified by the CGI script file. It takes three arguments: the path to the executable (fullPath), an array of argument strings (argv), and an array of environment variable strings (envp). If execve() is successful, it does not return, and the CGI script starts executing. If it fails, it returns -1, and we handle the error by exiting the child process with a non-zero status code.
+        // execve failed
+        std::exit(1);
+    }
+
+    // Parent
+    close(inPipe[0]);//no need to read from the input pipe in the parent, so we close the read end of the input pipe
+    close(outPipe[1]);//no need to write to the output pipe in the parent, so we close the write end of the output pipe
+    write(inPipe[1], req.body.c_str(), req.body.size());//write the request body to the write end of the input pipe, which will be read by the child process (the CGI script) as its stdin
+    close(inPipe[1]);
+    std::string output;
+    char buf[4096];
+    ssize_t n;
+    while ((n = read(outPipe[0], buf, sizeof(buf))) > 0)
+        output.append(buf, n);//store the output from the CGI script (read from the read end of the output pipe) in the output string, which will be used to construct the HttpResponse later
+        close(outPipe[0]);
+    int status;
+    waitpid(pid, &status, 0);
+    HttpResponse res;
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0)//if the child process (the CGI script) exited normally and returned a status code of 0, indicating success
+    {
+        // CGI output is headers + blank line + body, same as raw HTTP
+        size_t sep = output.find("\r\n\r\n");
+        if (sep == std::string::npos)
+        sep = output.find("\n\n");
+        if (sep != std::string::npos)
+        {
+            res.body = output.substr(sep + (output[sep] == '\r' ? 4 : 2));
+            res.headers["Content-Type"] = "text/html"; // CGI scripts may override via header parsing later
+        }
+        else
+        {
+            res.body = output;
+            res.headers["Content-Type"] = "text/html";
+        }
+    }
+    else
+    {
+        return makeError(502, "Bad Gateway");
+    }
+    std::cerr << "DEBUG::CGI DONE\n";
+    return res;
+}
+
 // ─────────────────────────────────────────────
 // Autoindex
 // ─────────────────────────────────────────────
@@ -379,6 +464,9 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
     if (!isMethodAllowed(rd, req.method))
         return makeErrorWithConfig(rd, 405, "Method Not Allowed");
     std::string fullPath = buildPath(rd, req);
+    std::cerr << "fullPath before handlecgi = [" << fullPath << "]\n";
+    if (!rd.cgiPass.empty() && req.method != "DELETE")
+        return handleCgi(rd, req, fullPath);
     if (req.method == "POST" && !rd.uploadPath.empty())
         return handleUpload(rd, req);
     if (FileSystem::isDir(fullPath))//if the path is a directory we serve the index file if it exists, otherwise return 403

@@ -32,9 +32,12 @@ Standalone, tested. **Not yet integrated with main.**
 
 ### Upload
 
+### Basic CGI
+
 ## Not yet implemented
 - Configuration multi-port 
-- CGI
+- Badly written configuration like wrong directory and locations
+- CGI Edge Cases(no cgi directory, badly written config direction)
 
 ## Integration notes
 My `RouteDecision` has extra fields Person 1's placeholder doesn't:

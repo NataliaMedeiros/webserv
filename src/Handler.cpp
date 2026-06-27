@@ -78,7 +78,7 @@ bool Handler::parseMultipart(const HttpRequest& req, std::string& outFilename, s
         return false;
 
     std::string boundary = "--" + contentType.substr(boundaryPos + 9);//extract the boundary string from the content-type header, adding the leading "--" as per the multipart/form-data specification
-
+    boundary = boundary.substr(0, boundary.find("\r")); 
     // Find the beginning and end of the part containing the file data
     size_t partStart = req.body.find(boundary);
     if (partStart == std::string::npos)//if the boundary is not found in the request body
@@ -249,17 +249,6 @@ std::string Handler::buildPath(const RouteDecision& rd, const HttpRequest& req)
     return root + remainder;
 }
 
-// ─────────────────────────────────────────────
-// Static file (GET)
-// ─────────────────────────────────────────────
-HttpResponse Handler::handleStaticFile(const std::string& fullPath)
-{
-    if (!FileSystem::exists(fullPath))
-        return makeError(404, "Not Found");
-
-    std::string content;
-    if (!FileSystem::readFile(fullPath, content))
-        return makeError(500, "Could not read file");
 HttpResponse Handler::makeErrorWithConfig(const RouteDecision& rd, int code, const std::string& message)
 {
     auto it = rd.errorPages.find(code);
@@ -474,7 +463,6 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
     if (!isMethodAllowed(rd, req.method))
         return makeErrorWithConfig(rd, 405, "Method Not Allowed");
     std::string fullPath = buildPath(rd, req);
-    std::cerr << "fullPath before handlecgi = [" << fullPath << "]\n";
     if (!rd.cgiPass.empty() && req.method != "DELETE")
         return handleCgi(rd, req, fullPath);
     if (req.method == "POST" && !rd.uploadPath.empty())

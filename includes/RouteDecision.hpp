@@ -1,9 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
-
-//I think this should override Noor hpp
-
+#include <map>
 
 // Output of Router. Tells Handler exactly what to do with this request.
 // Every field maps directly to something in LocationConfig or ServerConfig.
@@ -19,15 +17,11 @@ struct RouteDecision
     int                      redirectCode; // 0 = no redirect, 301/302 etc = redirect
     std::string              redirectUrl;  // target URL for redirect (empty if no redirect)
     std::string              locationPath; // the matched location's path, e.g. "/images"
-
-    RouteDecision()
+    std::map<int, std::string> errorPages;   // map of error codes to custom error page paths
+    RouteDecision()//setting default values for the fields in case they are not set by the configuration file
         : root("./www")
         , index("index.html")
         , autoindex(false)
         , redirectCode(0)
     {}
-
-    bool isCgi = false; //hardcoded because Sara is working on
-    bool allowUpload = false; //hardcoded because Sara is working on
-    std::string uploadDir = "./uploads"; //hardcoded because Sara is working on
 };

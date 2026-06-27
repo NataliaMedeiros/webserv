@@ -44,6 +44,8 @@ std::vector<std::string> ConfigParser::tokenize(const std::string& text)
     return tokens;
 }
 
+
+
 // ─────────────────────────────────────────────
 // parseLocation()
 //
@@ -81,7 +83,8 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
         }
         else if (key == "autoindex") //not yet implemented
         {
-            loc.autoindex = (tokens[i++] == "on");
+            loc.autoindex = (tokens[i] == "on" || tokens[i] == "true" || tokens[i] == "1");
+            ++i;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after autoindex");
         }
@@ -151,7 +154,6 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
 ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t& i)
 {
     ServerConfig srv;
-
     if (i >= tokens.size() || tokens[i] != "{")
         throw std::runtime_error("expected { after server");
     ++i;

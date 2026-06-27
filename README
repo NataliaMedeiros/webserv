@@ -1,0 +1,51 @@
+# Person 3: Router + Handler + FileSystem
+
+Standalone, tested. **Not yet integrated with main.**
+
+### Routing
+- Longest-prefix matching with boundary checks
+- Redirects (301/302/307/308)
+- Per-route allowed methods
+
+### Request handling
+- Handle GET requests for static files
+- Handle DELETE requests
+- Return error responses (404, 405, 500)
+- Alias-style path resolution(subject's kapouet example)
+
+### Config parser
+- Parse server and location blocks
+- Supports: root, index, listen, autoindex, methods,
+  upload_dir, cgi, return
+- Supports inline comments (#)
+- Rejects invalid configs:
+  - Unknown directives
+  - Missing braces
+  - Invalid ports
+  - Missing `server` 
+  - Missing or unreadable config files
+- Default error pages
+
+### Autoindex
+- tested with default_auto_off.conf (with and without index.html)
+- tested with default_auto_on.conf
+
+### Upload
+
+### Basic CGI
+
+## Not yet implemented
+- Configuration multi-port 
+- Badly written configuration like wrong directory and locations
+- CGI Edge Cases(no cgi directory, badly written config direction)
+
+## Integration notes
+My `RouteDecision` has extra fields Person 1's placeholder doesn't:
+`index`, `autoindex`, `locationPath`, `redirectCode`, `redirectUrl`,
+`methods`, `uploadPath`, `cgiPass`.
+
+My Handler is a class (`Handler::handle(rd, req)`), not free functions
+(`Handlers::serveStatic`). To decide at team meeting.
+
+## How to test
+Just use my temporary tests from main to test

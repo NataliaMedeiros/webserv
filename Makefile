@@ -18,7 +18,7 @@ SRCS =	src/main.cpp \
 		src/ConnectionStore.cpp \
 		src/ClientConnection.cpp \
 		src/ServerManager.cpp \
-		src/stubs.cpp \
+		src/HttpResponse.cpp \
 		src/HttpRequestParser.cpp \
 		src/ConfigParser.cpp \
 		src/FileSystem.cpp \

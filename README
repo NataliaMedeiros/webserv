@@ -1,6 +1,6 @@
 # Person 3: Router + Handler + FileSystem
 
-**integrated with main but not all tested**
+**integrated with main but needs more testing**
 
 Standalone---tested all of following
 ### Routing
@@ -36,7 +36,7 @@ Standalone---tested all of following
 
 
 ## Not yet implemented
-- Upload inside Integrated
+
 - Configuration multi-port 
 - Config Edge Cases like badly written configuration, wrong/non existant directory and locations
 - CGI Edge Cases(no cgi directory, badly written config direction)
@@ -53,3 +53,5 @@ Confirm you get back actual HTML with a directory listing, not a 403 or 404.
 - test CGI
 curl -i http://localhost:8080/cgi/hello.py
 Confirm 200 OK and the body shows <h1>Hello CGI</h1> (or whatever script outputs) 
+- test Upload
+curl -i -F "file=@test.txt" http://localhost:8080/upload

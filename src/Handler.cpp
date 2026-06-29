@@ -79,33 +79,45 @@ HttpResponse Handler::makeError(int code, const std::string& message)
 
 bool Handler::parseMultipart(const HttpRequest& req, std::string& outFilename, std::string& outFileContent)
 {
-    auto it = req.headers.find("Content-Type");
-    if (it == req.headers.end())
-        return false;
 
+    auto it = req.headers.find("content-type");
+    if (it == req.headers.end())
+    {
+        std::cerr << "content-type header not found\n";
+        return false;
+    }
     std::string contentType = it->second;//get the value of the content-type header
     size_t boundaryPos = contentType.find("boundary=");//find the position of the boundary parameter in the content-type header
     if (boundaryPos == std::string::npos)//if the boundary parameter is not found in the content-type header
+    {
+        std::cerr << "Boundary not found in Content-Type header\n";
         return false;
-
+    }    
     std::string boundary = "--" + contentType.substr(boundaryPos + 9);//extract the boundary string from the content-type header, adding the leading "--" as per the multipart/form-data specification
     boundary = boundary.substr(0, boundary.find("\r")); 
     // Find the beginning and end of the part containing the file data
     size_t partStart = req.body.find(boundary);
     if (partStart == std::string::npos)//if the boundary is not found in the request body
+    {
+        std::cerr << "Boundary not found in request body\n";
         return false;
+    }
     partStart += boundary.size();//move past the boundary to the start of the part
-
     size_t partEnd = req.body.find(boundary, partStart);//find the next boundary after the start of the part
     if (partEnd == std::string::npos)
+    {
+        std::cerr << "Closing boundary not found in request body\n";
         return false;
-
+    }
     std::string part = req.body.substr(partStart, partEnd - partStart);//extract the part of the request body between the two boundaries
 
     // Extract filename from Content-Disposition header
     size_t fnPos = part.find("filename=\"");
     if (fnPos == std::string::npos)
+    {
+        std::cerr << "Filename not found in Content-Disposition header\n";
         return false;
+    }
     fnPos += 10;//move past the "filename=\"" to the start of the filename
     size_t fnEnd = part.find("\"", fnPos);//find the end of the filename by looking for the next quote after the start of the filename
     outFilename = part.substr(fnPos, fnEnd - fnPos);//extract the filename from the part
@@ -113,7 +125,10 @@ bool Handler::parseMultipart(const HttpRequest& req, std::string& outFilename, s
     // Body starts after the blank line (\r\n\r\n) following the headers
     size_t bodyStart = part.find("\r\n\r\n");
     if (bodyStart == std::string::npos)
+    {
+        std::cerr << "Body start not found after headers\n";
         return false;
+    }
     bodyStart += 4;
 
     // Strip trailing \r\n before the next boundary

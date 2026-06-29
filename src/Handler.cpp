@@ -43,6 +43,16 @@ HttpResponse Handler::makeError(int code, const std::string& message)
 // ─────────────────────────────────────────────
 
 //Parses a multipart/form-data request body to extract the uploaded file's name and content
+
+//In order, parser should do exactly this ---
+// Read the boundary from the Content-Type header.
+// Find the first --boundary.
+// Read part headers until \r\n\r\n.
+// Everything after that is file data.
+// Stop at the next \r\n--boundary.
+// If that boundary ends with --, you're done.
+
+//Details:
 //The function looks for the "boundary" string in the Content-Type header, 
 //then finds the part of the body that contains the file data. 
 //It extracts the filename from the Content-Disposition header and the file content from the body,
@@ -57,6 +67,7 @@ HttpResponse Handler::makeError(int code, const std::string& message)
 //return example:
 //outFilename = "example.txt"
 //outFileContent = "This is the content of the file."
+
 
 
 //auto deduces the type of the variable from the return type of req.headers.find(), which is 
@@ -322,7 +333,7 @@ HttpResponse Handler::handleCgi(const RouteDecision& rd, const HttpRequest& req,
     ssize_t n;
     while ((n = read(outPipe[0], buf, sizeof(buf))) > 0)
         output.append(buf, n);//store the output from the CGI script (read from the read end of the output pipe) in the output string, which will be used to construct the HttpResponse later
-        close(outPipe[0]);
+    close(outPipe[0]);
     int status;
     waitpid(pid, &status, 0);
     HttpResponse res;

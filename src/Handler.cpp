@@ -3,6 +3,10 @@
 #include <cstdio>   // std::remove
 #include <string>
 #include <iostream>
+#include <algorithm>
+#include <cstdio>
+#include <sstream>
+#include <vector>
 
 // ─────────────────────────────────────────────
 // Top-level dispatch
@@ -34,21 +38,49 @@
 // So `headers["Location"] = rd.redirectUrl;` means:
 //   "make sure there's an entry with key 'Location', then set its value
 //    to rd.redirectUrl."
+
+static std::string htmlEscape(const std::string& input)
+{
+    std::string out;
+    out.reserve(input.size());
+    for (size_t i = 0; i < input.size(); ++i)
+    {
+        switch (input[i])
+        {
+            case '&':  out += "&amp;";  break;
+            case '<':  out += "&lt;";   break;
+            case '>':  out += "&gt;";   break;
+            case '"': out += "&quot;"; break;
+            default:   out += input[i];  break;
+        }
+    }
+    return out;
+}
 HttpResponse Handler::handleRedirect(const RouteDecision& rd)
 {
     HttpResponse res;
     res.status = rd.redirectCode;
-
-    if      (rd.redirectCode == 301) res.reason = "Moved Permanently";
-    else if (rd.redirectCode == 302) res.reason = "Found";
-    else if (rd.redirectCode == 307) res.reason = "Temporary Redirect";
-    else if (rd.redirectCode == 308) res.reason = "Permanent Redirect";
-    else                             res.reason = "Redirect";
-
-    res.headers["Location"]       = rd.redirectUrl;
-    res.headers["Content-Length"] = "0";
+    res.reason = HttpResponse::reasonPhrase(rd.redirectCode);
+    res.setHeader("Location", rd.redirectUrl);
     return res;
 }
+
+//olde version
+// HttpResponse Handler::handleRedirect(const RouteDecision& rd)
+// {
+//     HttpResponse res;
+//     res.status = rd.redirectCode;
+
+//     if      (rd.redirectCode == 301) res.reason = "Moved Permanently";
+//     else if (rd.redirectCode == 302) res.reason = "Found";
+//     else if (rd.redirectCode == 307) res.reason = "Temporary Redirect";
+//     else if (rd.redirectCode == 308) res.reason = "Permanent Redirect";
+//     else                             res.reason = "Redirect";
+
+//     res.headers["Location"]       = rd.redirectUrl;
+//     res.headers["Content-Length"] = "0";
+//     return res;
+// }
 
 // ─────────────────────────────────────────────
 // Method check
@@ -61,7 +93,7 @@ bool Handler::isMethodAllowed(const RouteDecision& rd, const std::string& method
 {
     if (rd.methods.empty())
         return true;
-    for (const std::string& m : rd.methods) 
+    for (const std::string& m : rd.methods)
     {
         if (m == method)
             return true;
@@ -70,19 +102,44 @@ bool Handler::isMethodAllowed(const RouteDecision& rd, const std::string& method
 }
 
 // ─────────────────────────────────────────────
-// Error response with a tiny HTML body
+// Old version
 // ─────────────────────────────────────────────
-HttpResponse Handler::makeError(int code, const std::string& message)
+// HttpResponse Handler::makeError(int code, const std::string& message)
+// {
+//     HttpResponse res;
+//     res.status = code;
+//     res.reason = message;
+
+//     std::string body = "<html><body><h1>"
+//                      + std::to_string(code) + " " + message
+//                      + "</h1></body></html>\n";
+//     res.body = body;
+//     res.headers["Content-Type"] = "text/html";
+//     return res;
+// }
+
+HttpResponse Handler::makeError(const RouteDecision& rd, int code, const std::string& message)
 {
     HttpResponse res;
     res.status = code;
-    res.reason = message;
+    res.reason = message.empty() ? HttpResponse::reasonPhrase(code) : message;
 
-    std::string body = "<html><body><h1>"
-                     + std::to_string(code) + " " + message
-                     + "</h1></body></html>\n";
-    res.body = body;
-    res.headers["Content-Type"] = "text/html";
+    std::map<int, std::string>::const_iterator custom = rd.errorPages.find(code);
+    if (custom != rd.errorPages.end())
+    {
+        std::string content;
+        if (FileSystem::isFileNormal(custom->second) && FileSystem::readFile(custom->second, content))
+        {
+            res.setBody(content, FileSystem::mimeType(custom->second));
+            return res;
+        }
+    }
+
+    std::ostringstream body;
+    body << "<!DOCTYPE html>\n"
+         << "<html><head><title>" << code << ' ' << res.reason << "</title></head>\n"
+         << "<body><h1>" << code << ' ' << res.reason << "</h1></body></html>\n";
+    res.setBody(body.str(), "text/html; charset=utf-8");
     return res;
 }
 
@@ -136,19 +193,71 @@ std::string Handler::buildPath(const RouteDecision& rd, const HttpRequest& req)
 // ─────────────────────────────────────────────
 // Static file (GET)
 // ─────────────────────────────────────────────
-HttpResponse Handler::handleStaticFile(const std::string& fullPath)
+// HttpResponse Handler::handleStaticFile(const std::string& fullPath)
+// {
+//     if (!FileSystem::exists(fullPath))
+//         return makeError(404, "Not Found");
+
+//     std::string content;
+//     if (!FileSystem::readFile(fullPath, content))
+//         return makeError(500, "Could not read file");
+
+//     HttpResponse res;
+//     res.body = content;
+//     res.headers["Content-Type"] = FileSystem::mimeType(fullPath);
+//     return res;
+// }
+
+HttpResponse Handler::handleStaticFile(const RouteDecision& rd, const std::string& fullPath)
 {
     if (!FileSystem::exists(fullPath))
-        return makeError(404, "Not Found");
+        return makeError(rd, 404, "Not Found");
+
+    if (!FileSystem::isFileNormal(fullPath))
+        return makeError(rd, 403, "Forbidden");
 
     std::string content;
     if (!FileSystem::readFile(fullPath, content))
-        return makeError(500, "Could not read file");
+        return makeError(rd, 500, "Could not read file");
 
     HttpResponse res;
-    res.body = content;
-    res.headers["Content-Type"] = FileSystem::mimeType(fullPath);
+    res.setBody(content, FileSystem::mimeType(fullPath));
     return res;
+}
+
+HttpResponse Handler::handleAutoindex(const std::string& dirPath, const std::string& uriPath)
+{
+    std::vector<std::string> entries;
+    if (!FileSystem::listDir(dirPath, entries))
+        return HttpResponse::error(500, "Could not read directory");
+
+    std::sort(entries.begin(), entries.end());
+
+    std::string displayPath = uriPath.empty() ? "/" : uriPath;
+
+    std::ostringstream html;
+    html << "<!DOCTYPE html>\n"
+         << "<html><head><title>Index of " << htmlEscape(displayPath) << "</title></head>\n"
+         << "<body>\n"
+         << "<h1>Index of " << htmlEscape(displayPath) << "</h1>\n"
+         << "<hr>\n<ul>\n";
+
+    if (displayPath != "/")
+        html << "  <li><a href=\"../\">../</a></li>\n";
+
+    for (std::vector<std::string>::const_iterator it = entries.begin();
+         it != entries.end(); ++it)
+    {
+        std::string href = displayPath;
+        if (href.empty() || href[href.size() - 1] != '/')
+            href += '/';
+        href += *it;
+        html << "  <li><a href=\"" << htmlEscape(href) << "\">"
+             << htmlEscape(*it) << "</a></li>\n";
+    }
+
+    html << "</ul>\n<hr>\n</body></html>\n";
+    return HttpResponse::html(200, html.str());
 }
 
 // ─────────────────────────────────────────────
@@ -157,13 +266,30 @@ HttpResponse Handler::handleStaticFile(const std::string& fullPath)
 //
 // 204 No Content is the standard response for a successful delete
 // when there is nothing useful to return in the body.
-HttpResponse Handler::handleDelete(const std::string& fullPath)
+// HttpResponse Handler::handleDelete(const std::string& fullPath)
+// {
+//     if (!FileSystem::exists(fullPath))
+//         return makeError(404, "Not Found");
+
+//     if (std::remove(fullPath.c_str()) != 0)
+//         return makeError(500, "Could not delete file");
+
+//     HttpResponse res;
+//     res.status = 204;
+//     res.reason = "No Content";
+//     return res;
+// }
+
+HttpResponse Handler::handleDelete(const RouteDecision& rd, const std::string& fullPath)
 {
     if (!FileSystem::exists(fullPath))
-        return makeError(404, "Not Found");
+        return makeError(rd, 404, "Not Found");
+
+    if (!FileSystem::isFileNormal(fullPath))
+        return makeError(rd, 403, "Forbidden");
 
     if (std::remove(fullPath.c_str()) != 0)
-        return makeError(500, "Could not delete file");
+        return makeError(rd, 500, "Could not delete file");
 
     HttpResponse res;
     res.status = 204;
@@ -171,9 +297,24 @@ HttpResponse Handler::handleDelete(const std::string& fullPath)
     return res;
 }
 
+std::string Handler::joinAllowedMethods(const RouteDecision& rd) const
+{
+    if (rd.methods.empty())
+        return "GET, POST, DELETE";
+
+    std::ostringstream out;
+    for (size_t i = 0; i < rd.methods.size(); ++i)
+    {
+        if (i != 0)
+            out << ", ";
+        out << rd.methods[i];
+    }
+    return out.str();
+}
+
 HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
 {
-    
+
     //redirectCode == 0 means no redirect configured, so we only handle redirect if it's non-zero
     if (rd.redirectCode != 0)
         return handleRedirect(rd);

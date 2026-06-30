@@ -1,13 +1,14 @@
 #pragma once
 #include "ServerConfig.hpp"
 #include <string>
+#include <vector>
 
 class ConfigParser
 {
 public:
-    // Reads a config file from disk and returns a filled ServerConfig.
-    // Throws std::runtime_error on parse errors.
-    static ServerConfig parse(const std::string& filename);
+   
+    //Returns one ServerConfig per "server{ ... }" block in the config file.
+    static std::vector<ServerConfig> parse(const std::string& filename);
 
 private:
     // Splits the whole file text into tokens like: "server", "{", "listen", "8080", ";", "}"

@@ -44,9 +44,10 @@ Standalone---tested all of following
 ## How to test
 - make
 - ./webserv configs/default_with_error.config(or choose other)
+- basic: curl -i http://localhost:8080
 -  test error pages from another terminal or browser:
 curl -i http://localhost:8080/nope.html
--i shows you the response headers and status line. Confirm: HTTP/1.1 404 Not Found and the body matches your custom error page HTML (or generic, depending on which config you started the server with).
+-i shows the response headers and status line. Confirm: HTTP/1.1 404 Not Found and the body matches your custom error page HTML (or generic, depending on which config you started the server with).
 - test autoindex
 curl -i http://localhost:8080/files/
 Confirm you get back actual HTML with a directory listing, not a 403 or 404.

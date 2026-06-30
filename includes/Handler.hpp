@@ -19,20 +19,17 @@
 
 class Handler
 {
-   public:
-     HttpResponse handle(const RouteDecision& rd, const HttpRequest& req);
+    public:
+        HttpResponse handle(const RouteDecision& rd, const HttpRequest& req);
 
-   private:
+    private:
+        HttpResponse handleStaticFile(const RouteDecision& rd, const std::string& fullPath);
+        HttpResponse handleRedirect(const RouteDecision& rd);
+        HttpResponse handleDelete(const RouteDecision& rd, const std::string& fullPath);
+        HttpResponse handleAutoindex(const std::string& dirPath, const std::string& uriPath);
 
-     HttpResponse handleStaticFile(const std::string& fullPath);
-     HttpResponse handleRedirect(const RouteDecision& rd);
-     HttpResponse handleDelete(const std::string& fullPath);
-     HttpResponse handleAutoindex(const std::string& dirPath, const std::string& uriPath);
-
-
-    // Helpers
-     std::string  buildPath(const RouteDecision& rd, const HttpRequest& req);
-     std::string  resolveErrorPagePath(const RouteDecision& rd, int code);
-     bool         isMethodAllowed(const RouteDecision& rd, const std::string& method);
-     HttpResponse makeError(const RouteDecision& rd, int code, const std::string& message);
+        std::string  buildPath(const RouteDecision& rd, const HttpRequest& req);
+        bool         isMethodAllowed(const RouteDecision& rd, const std::string& method);
+        HttpResponse makeError(const RouteDecision& rd, int code, const std::string& message);
+        std::string  joinAllowedMethods(const RouteDecision& rd) const;
 };

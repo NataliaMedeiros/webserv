@@ -19,6 +19,7 @@ struct RouteDecision
     int                      redirectCode; // 0 = no redirect, 301/302 etc = redirect
     std::string              redirectUrl;  // target URL for redirect (empty if no redirect)
     std::string              locationPath; // the matched location's path, e.g. "/images"
+    std::map<int, std::string> errorPages; // configured error_page directives
 
     RouteDecision()
         : root("./www")

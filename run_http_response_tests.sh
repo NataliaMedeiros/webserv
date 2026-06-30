@@ -355,6 +355,186 @@ expect_raw_status "POST /post-allowed/hello.txt HTTP/1.1\r\nHost: localhost\r\nT
                   "400" \
                   "Parser rejects malformed chunked body"
 
+# ============================================================
+# Extra integration/security tests
+# Put this block after the HTTP Parser tests and before the final
+# "Result: ... passed, ... failed" block.
+# ============================================================
+
+printf "\n=== Extra integration/security tests ===\n"
+
+# Helper: check that a response does NOT have a specific status code.
+expect_not_status_in_response() {
+    resp="$1"
+    unexpected="$2"
+    label="$3"
+
+    first_line="$(printf "%s" "$resp" | sed -n '1p' | tr -d '\r')"
+
+    case "$first_line" in
+        "HTTP/1.1 ${unexpected}"*)
+            ko "$label"
+            printf "Did not expect HTTP %s, got: %s\nFull response:\n%s\n" "$unexpected" "$first_line" "$resp"
+            ;;
+        *)
+            ok "$label"
+            ;;
+    esac
+}
+
+# Helper: check how many times a header appears.
+# Useful to catch duplicate Content-Length.
+expect_header_count() {
+    resp="$1"
+    header="$2"
+    expected_count="$3"
+    label="$4"
+
+    count="$(printf "%s" "$resp" | tr -d '\r' | grep -i "^${header}:" | wc -l | tr -d ' ')"
+
+    if [ "$count" = "$expected_count" ]; then
+        ok "$label"
+    else
+        ko "$label"
+        printf "Expected header '%s' to appear %s time(s), got %s\nFull response:\n%s\n" "$header" "$expected_count" "$count" "$resp"
+    fi
+}
+
+# ------------------------------------------------------------
+# Router prefix-boundary tests
+# ------------------------------------------------------------
+
+# If the router is correct, /filesabc must NOT match location /files.
+# This file would be served only if /filesabc incorrectly matched /files.
+printf 'SHOULD NOT MATCH FILES LOCATION\n' > "$ROOT/files/abc"
+
+resp="$(request GET /filesabc)"
+expect_contains "$resp" "HTTP/1.1 404 Not Found" "Router does not match /filesabc as /files"
+expect_not_contains "$resp" "SHOULD NOT MATCH FILES LOCATION" "Router prefix boundary prevents wrong file from being served"
+
+# Same idea for /onlygetextra: it must not match location /onlyget.
+resp="$(request POST /onlygetextra/hello.txt)"
+expect_contains "$resp" "HTTP/1.1 405 Method Not Allowed" "Router falls back to / for /onlygetextra"
+expect_contains "$resp" "Allow: GET, DELETE" "Router did not match /onlyget for /onlygetextra"
+
+# ------------------------------------------------------------
+# Path traversal tests
+# ------------------------------------------------------------
+
+# These requests must never return 200 OK.
+# Depending on your design, 400, 403 or 404 are acceptable.
+resp="$(request GET /../Makefile)"
+expect_not_status_in_response "$resp" "200" "Path traversal /../Makefile is not served"
+
+resp="$(request GET /files/../errors/404.html)"
+expect_not_status_in_response "$resp" "200" "Path traversal through location root is not served"
+
+resp="$(request GET /%2e%2e/Makefile)"
+expect_not_status_in_response "$resp" "200" "Encoded path traversal is not served"
+
+# ------------------------------------------------------------
+# Duplicate header checks
+# ------------------------------------------------------------
+
+resp="$(request GET /)"
+expect_header_count "$resp" "Content-Length" "1" "GET / has exactly one Content-Length header"
+
+resp="$(request GET /old)"
+expect_header_count "$resp" "Content-Length" "1" "Redirect has exactly one Content-Length header"
+
+resp="$(request GET /missing-page)"
+expect_header_count "$resp" "Content-Length" "1" "Error page has exactly one Content-Length header"
+
+# ------------------------------------------------------------
+# More malformed parser requests
+# These use raw_request(), so this block must come after raw_request is defined.
+# ------------------------------------------------------------
+
+expect_raw_status "GET / HTTP/1.1\r\nHost localhost\r\nConnection: close\r\n\r\n" \
+                  "400" \
+                  "Parser rejects header without colon"
+
+expect_raw_status "POST /post-allowed/hello.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: abc\r\nConnection: close\r\n\r\n" \
+                  "400" \
+                  "Parser rejects non-numeric Content-Length"
+
+expect_raw_status "POST /post-allowed/hello.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: -1\r\nConnection: close\r\n\r\n" \
+                  "400" \
+                  "Parser rejects negative Content-Length"
+
+expect_raw_status "POST /post-allowed/hello.txt HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: gzip\r\nConnection: close\r\n\r\n" \
+                  "400" \
+                  "Parser rejects unsupported Transfer-Encoding"
+
+# ------------------------------------------------------------
+# Keep-alive / pipelined requests
+# ------------------------------------------------------------
+
+keepalive_two_requests() {
+    TEST_PORT="$PORT" python3 - <<'PY'
+import socket
+import sys
+
+host = "127.0.0.1"
+port = int(__import__("os").environ["TEST_PORT"])
+
+def read_one_response(sock):
+    data = b""
+
+    while b"\r\n\r\n" not in data:
+        chunk = sock.recv(4096)
+        if not chunk:
+            return data
+        data += chunk
+
+    header, rest = data.split(b"\r\n\r\n", 1)
+    content_length = 0
+
+    for line in header.split(b"\r\n"):
+        if line.lower().startswith(b"content-length:"):
+            content_length = int(line.split(b":", 1)[1].strip())
+
+    while len(rest) < content_length:
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        rest += chunk
+
+    return header + b"\r\n\r\n" + rest[:content_length]
+
+try:
+    s = socket.create_connection((host, port), timeout=3.0)
+    s.settimeout(3.0)
+
+    s.sendall(
+        b"GET / HTTP/1.1\r\n"
+        b"Host: localhost\r\n"
+        b"\r\n"
+    )
+
+    first = read_one_response(s)
+
+    s.sendall(
+        b"GET /files/hello.txt HTTP/1.1\r\n"
+        b"Host: localhost\r\n"
+        b"Connection: close\r\n"
+        b"\r\n"
+    )
+
+    second = read_one_response(s)
+
+    s.close()
+
+    sys.stdout.buffer.write(first + b"\n---SECOND RESPONSE---\n" + second)
+except Exception as e:
+    sys.stderr.write("keepalive_two_requests error: %s\n" % e)
+PY
+}
+
+resp="$(keepalive_two_requests)"
+expect_contains "$resp" "ROOT INDEX OK" "Keep-alive first request returns body"
+expect_contains "$resp" "hello response" "Keep-alive second request returns body"
+
 printf "\nResult: %d passed, %d failed\n" "$PASS" "$FAIL"
 if [ "$FAIL" -ne 0 ]; then
     printf "\nServer log:\n"

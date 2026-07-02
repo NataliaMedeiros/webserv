@@ -1,10 +1,135 @@
 #include "Handler.hpp"
 #include "FileSystem.hpp"
-
 #include <algorithm>
 #include <cstdio>
 #include <sstream>
 #include <vector>
+#include <cctype>
+#include <stdlib.h>
+#include <limits.h>
+
+static int hexValue(char c);
+static bool percentDecodePath(const std::string& input, std::string& output);
+static bool hasParentDirectorySegment(const std::string& uriPath);
+static bool getRealPath(const std::string& path, std::string& out);
+static bool pathBeginsWithPath(const std::string& base, const std::string& candidate);
+static bool isPathInsideRoot(const std::string& root, const std::string& candidate);
+
+static int hexValue(char c)
+{
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F')
+        return c - 'A' + 10;
+    return -1;
+}
+
+static bool percentDecodePath(const std::string& input, std::string& output)
+{
+    output.clear();
+    output.reserve(input.size());
+
+    for (size_t i = 0; i < input.size(); ++i)
+    {
+        if (input[i] != '%')
+        {
+            if (input[i] == '\0')
+                return false;
+            output += input[i];
+            continue;
+        }
+
+        if (i + 2 >= input.size())
+            return false;
+
+        int high = hexValue(input[i + 1]);
+        int low = hexValue(input[i + 2]);
+
+        if (high < 0 || low < 0)
+            return false;
+
+        char decoded = static_cast<char>((high << 4) | low);
+
+        if (decoded == '\0')
+            return false;
+
+        output += decoded;
+        i += 2;
+    }
+
+    return true;
+}
+
+static bool hasParentDirectorySegment(const std::string& uriPath)
+{
+    std::string decoded;
+
+    if (!percentDecodePath(uriPath, decoded))
+        return true;
+
+    size_t start = 0;
+
+    while (start <= decoded.size())
+    {
+        size_t end = start;
+
+        while (end < decoded.size() && decoded[end] != '/' && decoded[end] != '\\')
+            ++end;
+
+        if (decoded.substr(start, end - start) == "..")
+            return true;
+
+        if (end == decoded.size())
+            break;
+
+        start = end + 1;
+    }
+
+    return false;
+}
+static bool getRealPath(const std::string& path, std::string& out)
+{
+    char resolved[PATH_MAX];
+
+    if (realpath(path.c_str(), resolved) == NULL)
+        return false;
+
+    out = resolved;
+    return true;
+}
+
+static bool pathBeginsWithPath(const std::string& base, const std::string& candidate)
+{
+    if (base == "/")
+        return candidate.size() > 0 && candidate[0] == '/';
+
+    if (candidate == base)
+        return true;
+
+    if (candidate.size() <= base.size())
+        return false;
+
+    if (candidate.compare(0, base.size(), base) != 0)
+        return false;
+
+    return candidate[base.size()] == '/';
+}
+
+static bool isPathInsideRoot(const std::string& root, const std::string& candidate)
+{
+    std::string realRoot;
+    std::string realCandidate;
+
+    if (!getRealPath(root, realRoot))
+        return false;
+
+    if (!getRealPath(candidate, realCandidate))
+        return true;
+
+    return pathBeginsWithPath(realRoot, realCandidate);
+}
 
 static std::string htmlEscape(const std::string& input)
 {
@@ -216,7 +341,14 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
         return res;
     }
 
+    if (hasParentDirectorySegment(req.path))
+        return makeError(rd, 403, "Forbidden");
+
     std::string fullPath = buildPath(rd, req);
+
+    if (!isPathInsideRoot(rd.root, fullPath))
+        return makeError(rd, 403, "Forbidden");
+    // std::string fullPath = buildPath(rd, req);
 
     if (FileSystem::isDir(fullPath))
     {

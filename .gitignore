@@ -1,2 +1,5 @@
 *.o
 webserv
+.test_www
+.test_http_response.conf
+.test_webserv.log

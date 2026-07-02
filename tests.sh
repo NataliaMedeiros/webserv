@@ -423,10 +423,10 @@ expect_contains "$resp" "Allow: GET, DELETE" "Router did not match /onlyget for 
 
 # These requests must never return 200 OK.
 # Depending on your design, 400, 403 or 404 are acceptable.
-resp="$(request GET /../Makefile)"
+resp="$(request GET /../Makefile --path-as-is)"
 expect_not_status_in_response "$resp" "200" "Path traversal /../Makefile is not served"
 
-resp="$(request GET /files/../errors/404.html)"
+resp="$(request GET /files/../errors/404.html --path-as-is)"
 expect_not_status_in_response "$resp" "200" "Path traversal through location root is not served"
 
 resp="$(request GET /%2e%2e/Makefile)"

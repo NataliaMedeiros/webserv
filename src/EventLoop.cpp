@@ -4,17 +4,29 @@
 // EventLoop is the heart of the server.
 // It runs forever in a loop, doing three things each iteration:
 //   1. Collect all open file descriptors (fds) into a list for poll()
-//   2. Call poll() - which waits until at least one fd has something to do
+//   2. Call poll() which waits until at least one fd has something to do
 //   3. React to whichever fds are ready (new connection, data to read, or data to send)
 //
 // This is called an "event-driven" or "non-blocking" server:
 // instead of waiting on one connection at a time, poll() watches ALL connections
 // simultaneously and only acts when something is actually ready.
-
-EventLoop::EventLoop(Listener& listener, ConnectionStore& store)
-    : _listener(listener), _store(store)
+// 
+// Multi port update (6 july by Noor)
+// EventLoop now holds a vector of Listeners instead of just one.
+// _listenerConfigs works like our memory: it maps each listener fd to its ServerConfig.
+// We build it once in the constructor when we still know both the listener and its config.
+// Later, when a new client comes in, we only see an fd number.
+// Without this map we would no longer know which port it came from.
+// and which config to give the new client.
+EventLoop::EventLoop(std::vector<Listener>& listeners,
+                    const std::vector<ServerConfig>& configs,
+                    ConnectionStore& store)
+    : _listeners(listeners), _store(store)
 {
+    for (size_t i = 0; i < listeners.size(); i++)
+        _listenerConfigs[listeners[i].fd()] = configs [i];
 }
+
 
 // rebuildPollFds() builds the list of fds that poll() should watch.
 // We rebuild it every iteration because connections are added and removed constantly.
@@ -22,12 +34,16 @@ void EventLoop::rebuildPollFds()
 {
     _pollFds.clear();
 
-    // Always watch the listener fd for new incoming connections (POLLIN = readable)
-    pollfd listenerEntry;
-    listenerEntry.fd      = _listener.fd();
-    listenerEntry.events  = POLLIN;
-    listenerEntry.revents = 0;
-    _pollFds.push_back(listenerEntry);
+    // Loop over all listeners instead of one,
+    // so poll() watches every port we are listening on.
+    for (auto& listener : _listeners)
+    {
+        pollfd listenerEntry;
+        listenerEntry.fd      = listener.fd();
+        listenerEntry.events  = POLLIN;
+        listenerEntry.revents = 0;
+        _pollFds.push_back(listenerEntry);
+    }
 
     // Add every active client connection with the events it is interested in.
     // Each ClientConnection tells us what it wants via wantedEvents():
@@ -55,18 +71,37 @@ void EventLoop::dispatchEvents()
         if (p.revents == 0)
             continue;
 
-        // --- Listener fd: a new client wants to connect ---
-        if (p.fd == _listener.fd())
+        // Check if this fd belongs to one of our listeners (not a client).
+        // We use _listenerConfigs as our memory to recognise listener fds.
+        if (_listenerConfigs.count(p.fd)) // NEW "is the fd in our map?"
         {
+            // Look up which config belongs to this listener fd
+            const ServerConfig& config = _listenerConfigs.at(p.fd);
+
+            // Find the matching listener so we can call acceptOne() on it
+            Listener* activeListener = nullptr;
+            for (auto& l : _listeners)
+            {
+               if (l.fd() == p.fd)
+            {
+                activeListener = &l;
+                break;
+            }
+             }
+            if (!activeListener)
+                continue;
+
             // Accept all waiting clients in one go (there may be more than one)
             while (true)
             {
-                int clientFd = _listener.acceptOne();
+                int clientFd = activeListener->acceptOne();
                 if (clientFd == -1)
                     break; // No more clients waiting right now
 
-                _store.add(clientFd);
-                std::cout << "[+] New connection: fd=" << clientFd << "\n";
+                // Pass the correct config so the client knows which server block it belongs to
+                _store.add(clientFd, config);
+                std::cout << "[+] New connection: fd=" << clientFd
+                        << " on port " << config.port << "\n";
             }
             continue;
         }

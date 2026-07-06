@@ -1,22 +1,28 @@
 #include "ConnectionStore.hpp"
 
-// ConnectionStore keeps track of all active client connections.
-// It owns the ClientConnection objects - when a connection is removed,
-// the object is destroyed and the fd is automatically closed (RAII).
+// Noor: I deleted the whole constructor here, because 
+// ConnectionStore no longer holds a global ServerConfig.
+// Each client now receives the correct config via add(fd, config),
+// passed in by EventLoop which knows which listener the client came from.
+// // ConnectionStore keeps track of all active client connections.
+// // It owns the ClientConnection objects - when a connection is removed,
+// // the object is destroyed and the fd is automatically closed (RAII).
 
-ConnectionStore::ConnectionStore(const ServerConfig& config) : _config(config)
-{
+// ConnectionStore::ConnectionStore(const ServerConfig& config) : _config(config)
+// {
 
-}
+// }
 // add() creates a new ClientConnection for the given fd and stores it.
 
 
-void ConnectionStore::add(int fd)
+void ConnectionStore::add(int fd, const ServerConfig& config)
 {
     // unique_ptr means ConnectionStore owns this object.
     // When we call remove() or the store is destroyed, the ClientConnection
     // is automatically deleted and its fd is closed - no manual cleanup needed.
-    _conns[fd] = std::unique_ptr<ClientConnection>(new ClientConnection(fd, _config));
+    _conns[fd] = std::unique_ptr<ClientConnection>(
+        new ClientConnection(fd, config)
+    );
 }
 
 // remove() deletes the ClientConnection for the given fd.
@@ -26,11 +32,10 @@ void ConnectionStore::remove(int fd)
     _conns.erase(fd);
 }
 
-// get() returns a pointer to the ClientConnection for the given fd.
-// Returns nullptr if the fd is not in the store (connection already removed).
+// NEW get function (6 july, by Noor)
 ClientConnection* ConnectionStore::get(int fd)
 {
-    std::map<int, std::unique_ptr<ClientConnection>>::iterator it = _conns.find(fd);
+    auto it = _conns.find(fd);
     if (it == _conns.end())
         return nullptr;
     return it->second.get();

@@ -1,4 +1,5 @@
 #include "Router.hpp"
+#include <iostream>
 
 // Router constructor.
 // Stores a pointer to the ServerConfig so we can read locations during routing.

@@ -1,0 +1,58 @@
+# Person 3: Router + Handler + FileSystem
+
+**integrated with main but needs more testing**
+
+Standalone---tested all of following
+### Routing
+- Longest-prefix matching with boundary checks
+- Redirects (301/302/307/308)
+- Per-route allowed methods
+
+### Request handling
+- Handle GET requests for static files
+- Handle DELETE requests
+- Return error responses (404, 405, 500)
+- Alias-style path resolution(subject's kapouet example)
+
+### Config parser
+- Parse server and location blocks
+- Supports: root, index, listen, autoindex, methods,
+  upload_dir, cgi, return
+- Supports inline comments (#)
+- Rejects invalid configs:
+  - Unknown directives
+  - Missing braces
+  - Invalid ports
+  - Missing `server` 
+  - Missing or unreadable config files
+- Default error pages
+
+### Autoindex
+- tested with default_auto_off.conf (with and without index.html)
+- tested with default_auto_on.conf
+
+### Upload
+### Basic CGI
+
+
+## Not yet implemented
+
+- Configuration multi-port 
+- Config Edge Cases like badly written configuration, wrong/non existant directory and locations
+- CGI Edge Cases(no cgi directory, badly written config direction)
+
+## How to test
+- make
+- ./webserv configs/default_with_error.config(or choose other)
+- basic: curl -i http://localhost:8080
+-  test error pages from another terminal or browser:
+curl -i http://localhost:8080/nope.html
+-i shows the response headers and status line. Confirm: HTTP/1.1 404 Not Found and the body matches your custom error page HTML (or generic, depending on which config you started the server with).
+- test autoindex
+curl -i http://localhost:8080/files/
+Confirm you get back actual HTML with a directory listing, not a 403 or 404.
+- test CGI
+curl -i http://localhost:8080/cgi/hello.py
+Confirm 200 OK and the body shows <h1>Hello CGI</h1> (or whatever script outputs) 
+- test Upload
+curl -i -F "file=@test.txt" http://localhost:8080/upload

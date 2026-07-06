@@ -15,9 +15,11 @@ struct LocationConfig
     int                      redirectCode;
     std::string              redirectUrl;
     std::map<int, std::string> errorPages;
+    size_t                      maxBodySize = 1024 * 1024; // default 1MB
 
     LocationConfig()
         : autoindex(false)
         , redirectCode(0)
+        , maxBodySize(1024 * 1024)
     {}
 };

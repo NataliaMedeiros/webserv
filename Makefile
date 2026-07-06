@@ -35,6 +35,9 @@ $(NAME): $(OBJS)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
+test_feature: src/test_features.cpp Router.o Handler.o FileSystem.o ConfigParser.o
+	c++ -Wall -Wextra -Werror -std=c++17 $^ -o test_feature
+
 clean:
 	rm -f $(OBJS)
 

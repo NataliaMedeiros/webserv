@@ -43,6 +43,51 @@ std::vector<std::string> ConfigParser::tokenize(const std::string& text)
     if (!temp.empty()) tokens.push_back(temp);
     return tokens;
 }
+// ─────────────────────────────────────────────
+// parseListen()
+// Accepts either "8080" or "127.0.0.1:8080"
+// ─────────────────────────────────────────────
+static void parseListen(const std::string& value, ServerConfig& srv)
+{
+    size_t colon = value.find(':');
+    if (colon == std::string::npos)
+    {
+        // Just a port, e.g. "listen 8080;"
+        try { srv.port = std::stoi(value); }
+        catch (...) { throw std::runtime_error("invalid port: " + value); }
+    }
+    else
+    {
+        // "host:port", e.g. "listen 127.0.0.1:8080;"
+        srv.host = value.substr(0, colon);
+        std::string portStr = value.substr(colon + 1);
+        try { srv.port = std::stoi(portStr); }
+        catch (...) { throw std::runtime_error("invalid port: " + portStr); }
+    }
+
+    if (srv.port < 1 || srv.port > 65535)
+        throw std::runtime_error("port out of range: " + std::to_string(srv.port));
+}
+// ─────────────────────────────────────────────
+// parseSize()
+// Accepts plain bytes ("1000000") or suffixed ("10M", "500K")
+// ─────────────────────────────────────────────
+static size_t parseSize(const std::string& value)
+{
+    if (value.empty())
+        throw std::runtime_error("empty client_max_body_size value");
+
+    char suffix = value.back();
+    size_t multiplier = 1;
+    std::string numPart = value;
+
+    if (suffix == 'K' || suffix == 'k') { multiplier = 1024; numPart = value.substr(0, value.size() - 1); }
+    else if (suffix == 'M' || suffix == 'm') { multiplier = 1024 * 1024; numPart = value.substr(0, value.size() - 1); }
+    else if (suffix == 'G' || suffix == 'g') { multiplier = 1024 * 1024 * 1024; numPart = value.substr(0, value.size() - 1); }
+
+    try { return static_cast<size_t>(std::stoul(numPart)) * multiplier; }
+    catch (...) { throw std::runtime_error("invalid client_max_body_size: " + value); }
+}
 
 // ─────────────────────────────────────────────
 // parseLocation()
@@ -81,7 +126,8 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
         }
         else if (key == "autoindex") //not yet implemented
         {
-            loc.autoindex = (tokens[i++] == "on");
+            loc.autoindex = (tokens[i] == "on" || tokens[i] == "true" || tokens[i] == "1");
+            ++i;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after autoindex");
         }
@@ -127,6 +173,12 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after return");
         }
+         else if (key == "client_max_body_size")
+        {
+            loc.maxBodySize = parseSize(tokens[i++]);
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after client_max_body_size");
+        }
         else 
         {
             throw std::runtime_error("unknown directive in location: " + key);
@@ -151,7 +203,6 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
 ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t& i)
 {
     ServerConfig srv;
-
     if (i >= tokens.size() || tokens[i] != "{")
         throw std::runtime_error("expected { after server");
     ++i;
@@ -160,12 +211,10 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
     {
         const std::string& key = tokens[i++];//assign the current token to key and move to next token
 
-        if (key == "listen") 
+        if (key == "listen")
         {
-            try { srv.port = std::stoi(tokens[i++]); }//stoi() converts a string to an integer;assign the next token to port and move to next token
-            catch (...) { throw std::runtime_error("invalid port number: " + tokens[i-1]); }
-            if (srv.port < 1 || srv.port > 65535)//valid port numbers are between 1 and 65535
-                throw std::runtime_error("port out of range: " + std::to_string(srv.port));
+            std::string value = tokens[i++];
+            parseListen(value, srv);
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after listen");
         }
@@ -197,6 +246,17 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after error_page");
         }
+         else if (key == "client_max_body_size")
+        {
+            srv.maxBodySize = parseSize(tokens[i++]);
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after client_max_body_size");
+        }
+        else if (key == "location")
+        {
+            srv.locations.push_back(parseLocation(tokens, i));
+            continue;
+        }
         else 
         {
             throw std::runtime_error("unknown directive in server: " + key);
@@ -213,7 +273,7 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
 //
 // Top-level: read file, tokenize, find "server { ... }".
 // ─────────────────────────────────────────────
-ServerConfig ConfigParser::parse(const std::string& filename)
+std::vector<ServerConfig> ConfigParser::parse(const std::string& filename)
 {
     std::string text;
     if (!FileSystem::isFileNormal(filename))
@@ -222,9 +282,16 @@ ServerConfig ConfigParser::parse(const std::string& filename)
         throw std::runtime_error("cannot open config file: " + filename);
 
     std::vector<std::string> tokens = tokenize(text);
+    std::vector<ServerConfig> servers;
     size_t i = 0;
-    if (i >= tokens.size() || tokens[i] != "server")
-        throw std::runtime_error("config must start with 'server'");
-    ++i;
-    return parseServer(tokens, i);
+    while (i < tokens.size())
+    {
+        if (tokens[i] != "server")
+            throw std::runtime_error("expected 'server' block, found: " + tokens[i]);
+        ++i;
+        servers.push_back(parseServer(tokens, i));
+    }
+    if (servers.empty())
+        throw std::runtime_error("config must contain at least one server block");
+    return servers;
 }

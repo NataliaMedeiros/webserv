@@ -27,11 +27,11 @@ short ClientConnection::wantedEvents() const
 {
     short events = 0;
 
-    // Always listen for incoming data, unless we are already closing
-    if (_state != State::Closing)
+    // In CGI state we do not want to read from the client socket.
+    // we are waiting for the CGI pipe instead (EventLoop handles that seperately)
+    if (_state != State::Closing && _state != State::CGI)
         events |= POLLIN;
 
-    // Only watch for "writable" if we actually have data waiting to be sent
     if (!_out.empty())
         events |= POLLOUT;
 
@@ -191,3 +191,92 @@ void ClientConnection::handleRequest(const HttpRequest& req)
 
 //     queueResponse(resp, req.keepAlive);
 // }
+
+// startCgi() forks a child process to run a CGI script.
+// The child runs the script via execve(). The parent keeps the 
+// read end of the pipe so EventLoop can poll() it for output
+void ClientConnection::startCgi(const std::string& executable,
+                                const std::string& scriptPath,
+                                const std::vector<std::string>& env,
+                                const std::string& body)
+{
+    (void)body; // temporarily unused, Sara will wire in the request body later
+    // Create a pipe: read end, pipefd[1] = write end 
+    int pipefd[2];
+    if (::pipe(pipefd) < 0)
+    {
+        queueResponse(HttpResponse::text(500, "Internal Server Error"), false);
+        return;
+    }
+    _cgiPid = ::fork();
+
+    if (_cgiPid < 0)
+    {
+        // fork() failed
+        ::close(pipefd[0]);
+        ::close(pipefd[1]);
+        queueResponse(HttpResponse::text(500, "Internal Server Error"), false);
+        return;
+    }
+    if (_cgiPid == 0)
+    {
+        // CHILD Process: redirect stdout to the write end of the pipe
+        ::close(pipefd[0]); // child does not need the read end
+        ::dup2(pipefd[1], STDOUT_FILENO);
+        ::close(pipefd[1]);
+
+        // Build the argv array for execve()
+        std::vector<char*> argv;
+        argv.push_back(const_cast<char*>(executable.c_str()));
+        argv.push_back(const_cast<char*>(scriptPath.c_str()));
+        argv.push_back(nullptr);
+
+        // Build  the envp array for execve()
+        std::vector<char*> envp;
+        for (const std::string& e : env)
+            envp.push_back(const_cast<char*>(e.c_str()));
+        envp.push_back(nullptr);
+
+        ::execve(executable.c_str(), argv.data(), envp.data());
+
+        // If execve() returns, something went wrong
+        ::exit(1);
+    }
+    // PARENT PROCESS: keep the read end, close the write end
+    ::close(pipefd[1]);
+    _cgiFd = pipefd[0];
+    _state = State::CGI;
+}
+
+// onCgiReadable() is called by EventLoop when the CGI pipe has data
+// We accumulate the output and build a response when the pipe closes.
+void ClientConnection::onCgiReadable()
+{
+    char buf[4096];
+    ssize_t bytesRead = ::read(_cgiFd, buf, sizeof(buf));
+    if (bytesRead > 0)
+    {
+        _cgiOutput += std::string(buf, static_cast<size_t>(bytesRead));
+        return; // More data might come, wait for next poll() call
+    }
+    // bytesRead == 0 means the pipe closed, script is done
+    ::close(_cgiFd);
+    _cgiFd = -1;
+
+    // Wait for the child process to finish (non-blocking)
+    if (_cgiPid != -1)
+    {
+        ::waitpid(_cgiPid, nullptr, WNOHANG);
+        _cgiPid = -1;
+    }
+
+    // Build the response from the CGI output
+    HttpResponse resp;
+    resp.status = 200;
+    resp.reason = "OK";
+    resp.body = _cgiOutput;
+    resp.headers["Content-Type"] = "text/html";
+    _cgiOutput.clear();
+
+    queueResponse(resp, false);
+}

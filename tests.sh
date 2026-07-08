@@ -98,9 +98,65 @@ expect_status_with_header() {
     fi
 }
 
+
+# ============================================================
+# Merge sanity checks: catches using old integration stubs instead
+# of the real HttpResponse implementation from feature-http-response.
+# Put this after helper functions and before make/build.
+# ============================================================
+expect_makefile_contains_src() {
+    needle="$1"
+    label="$2"
+    if grep -v '^[[:space:]]*#' Makefile | grep -Fq "$needle"; then
+        ok "$label"
+    else
+        ko "$label"
+        printf "Expected Makefile SRCS to contain: %s\n" "$needle"
+    fi
+}
+
+expect_makefile_not_contains_src() {
+    needle="$1"
+    label="$2"
+    if grep -v '^[[:space:]]*#' Makefile | grep -Fq "$needle"; then
+        ko "$label"
+        printf "Makefile should not compile old stub source: %s\n" "$needle"
+    else
+        ok "$label"
+    fi
+}
+
+expect_file_content() {
+    file="$1"
+    needle="$2"
+    label="$3"
+    if [ -f "$file" ] && grep -Fq "$needle" "$file"; then
+        ok "$label"
+    else
+        ko "$label"
+        printf "Expected file %s to contain: %s\n" "$file" "$needle"
+        [ -f "$file" ] && printf "Current file content:\n" && cat "$file"
+    fi
+}
+
+expect_file_not_exists() {
+    file="$1"
+    label="$2"
+    if [ ! -e "$file" ]; then
+        ok "$label"
+    else
+        ko "$label"
+        printf "File should not exist: %s\n" "$file"
+    fi
+}
+
+printf "Running merge sanity checks...\n"
+expect_makefile_contains_src "src/HttpResponse.cpp" "Merge uses real HttpResponse.cpp"
+expect_makefile_not_contains_src "src/stubs.cpp" "Merge does not compile old integration stubs.cpp"
+
 printf "Preparing test files...\n"
 rm -rf "$ROOT" "$CONF" "$LOG"
-mkdir -p "$ROOT/errors" "$ROOT/files" "$ROOT/list" "$ROOT/noindex"
+mkdir -p "$ROOT/errors" "$ROOT/files" "$ROOT/list" "$ROOT/noindex" "$ROOT/uploads" "$ROOT/cgi"
 printf 'ROOT INDEX OK\n' > "$ROOT/index.html"
 printf 'hello response\n' > "$ROOT/files/hello.txt"
 printf 'delete me\n' > "$ROOT/files/delete-me.txt"
@@ -110,6 +166,15 @@ printf 'CUSTOM 405 PAGE\n' > "$ROOT/errors/405.html"
 printf 'autoindex A\n' > "$ROOT/list/a.txt"
 printf '<b>autoindex B</b>\n' > "$ROOT/list/b.html"
 printf 'secret noindex\n' > "$ROOT/noindex/secret.txt"
+printf 'UPLOAD CONTENT
+' > "$ROOT/files/upload-source.txt"
+cat > "$ROOT/cgi/hello.py" <<'PYCGI'
+#!/usr/bin/env python3
+print("Content-Type: text/html")
+print()
+print("<h1>Hello CGI</h1>")
+PYCGI
+chmod +x "$ROOT/cgi/hello.py"
 
 cat > "$CONF" <<CONFIG
 server {
@@ -154,6 +219,18 @@ server {
     location /post-allowed {
         root ./${ROOT}/files;
         methods POST ;
+    }
+
+    location /upload {
+        root ./${ROOT};
+        upload_dir ./${ROOT}/uploads;
+        methods POST ;
+    }
+
+    location /cgi {
+        root ./${ROOT}/cgi;
+        methods GET POST ;
+        cgi /usr/bin/python3;
     }
 }
 CONFIG
@@ -534,6 +611,41 @@ PY
 resp="$(keepalive_two_requests)"
 expect_contains "$resp" "ROOT INDEX OK" "Keep-alive first request returns body"
 expect_contains "$resp" "hello response" "Keep-alive second request returns body"
+
+
+# ============================================================
+# Upload + CGI integration tests from the integration branch.
+# These verify that the merge kept Router/Handler/FileSystem features
+# while using the real HttpResponse serializer.
+# ============================================================
+
+printf "\n=== Upload + CGI merge tests ===\n"
+
+resp="$(curl -sS -i --max-time 3 \
+    -F "file=@${ROOT}/files/upload-source.txt;filename=merge-upload.txt" \
+    "http://127.0.0.1:${PORT}/upload")"
+expect_contains "$resp" "HTTP/1.1 201 Created" "Upload returns 201 Created"
+expect_header_count "$resp" "Content-Length" "1" "Upload has exactly one Content-Length header"
+expect_file_content "$ROOT/uploads/merge-upload.txt" "UPLOAD CONTENT" "Upload writes file content to upload_dir"
+
+resp="$(curl -sS -i --max-time 3 \
+    -F "file=@${ROOT}/files/upload-source.txt;filename=../../evil.txt" \
+    "http://127.0.0.1:${PORT}/upload")"
+expect_contains "$resp" "HTTP/1.1 400 Bad Request" "Upload rejects path traversal filename"
+expect_file_not_exists "$ROOT/../evil.txt" "Upload path traversal does not create outside file"
+
+resp="$(curl -sS -i --max-time 3 \
+    -F "file=@${ROOT}/files/upload-source.txt;filename=" \
+    "http://127.0.0.1:${PORT}/upload")"
+expect_contains "$resp" "HTTP/1.1 400 Bad Request" "Upload rejects empty filename"
+
+resp="$(request GET /cgi/hello.py)"
+expect_contains "$resp" "HTTP/1.1 200 OK" "CGI GET returns 200 OK"
+expect_contains "$resp" "Hello CGI" "CGI response body is returned"
+expect_header_count "$resp" "Content-Length" "1" "CGI response has exactly one Content-Length header"
+
+resp="$(request GET /cgi/missing.py)"
+expect_contains "$resp" "HTTP/1.1 404 Not Found" "Missing CGI script returns 404"
 
 printf "\nResult: %d passed, %d failed\n" "$PASS" "$FAIL"
 if [ "$FAIL" -ne 0 ]; then

@@ -275,7 +275,7 @@ HttpResponse Handler::makeError(const RouteDecision& rd, int code, const std::st
     HttpResponse res;
 
     res.status = code;
-    res.reason = message.empty() ? HttpResponse::reasonPhrase(code) : message;
+    res.reason = HttpResponse::reasonPhrase(code);
 
     std::map<int, std::string>::const_iterator custom = rd.errorPages.find(code);
     if (custom != rd.errorPages.end())
@@ -293,7 +293,12 @@ HttpResponse Handler::makeError(const RouteDecision& rd, int code, const std::st
     std::ostringstream body;
     body << "<!DOCTYPE html>\n"
          << "<html><head><title>" << code << ' ' << res.reason << "</title></head>\n"
-         << "<body><h1>" << code << ' ' << res.reason << "</h1></body></html>\n";
+         << "<body><h1>" << code << ' ' << res.reason << "</h1>\n";
+
+    if (!message.empty() && message != res.reason)
+        body << "<p>" << htmlEscape(message) << "</p>\n";
+
+    body << "</body></html>\n";
 
     res.setBody(body.str(), "text/html; charset=utf-8");
     return res;

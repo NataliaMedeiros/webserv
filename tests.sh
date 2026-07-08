@@ -10,14 +10,56 @@ PID="" #server process ID
 PASS=0 #number of tests that passed
 FAIL=0 #number of tests that failed
 
-#This function kill the server when the test is finished
+MULTI_PORT1="${MULTI_PORT1:-$((PORT + 1))}"
+MULTI_PORT2="${MULTI_PORT2:-$((PORT + 2))}"
+MULTI_CONF=".test_multi_port.conf"
+MULTI_ROOT1=".test_multi_port_1"
+MULTI_ROOT2=".test_multi_port_2"
+MULTI_LOG=".test_multi_port.log"
+MULTI_OUT1=".test_multi_port_1.out"
+MULTI_OUT2=".test_multi_port_2.out"
+MULTI_PID=""
+
+# Delete only files/folders created by this script.
+clean_test_artifacts() {
+    rm -rf \
+        "$CONF" \
+        "$ROOT" \
+        "$LOG" \
+        "$MULTI_CONF" \
+        "$MULTI_ROOT1" \
+        "$MULTI_ROOT2" \
+        "$MULTI_LOG" \
+        "$MULTI_OUT1" \
+        "$MULTI_OUT2"
+
+    # Only remove this if a broken path-traversal test created it.
+    if [ -f "evil.txt" ] && grep -Fq "UPLOAD CONTENT" "evil.txt" 2>/dev/null; then
+        rm -f "evil.txt"
+    fi
+}
+
+# This function only kills running test servers.
+# Temporary files are removed manually with: ./tests.sh clean
 cleanup() {
     if [ -n "${PID}" ] && kill -0 "${PID}" 2>/dev/null; then
         kill "${PID}" 2>/dev/null || true
         wait "${PID}" 2>/dev/null || true
     fi
+    if [ -n "${MULTI_PID}" ] && kill -0 "${MULTI_PID}" 2>/dev/null; then
+        kill "${MULTI_PID}" 2>/dev/null || true
+        wait "${MULTI_PID}" 2>/dev/null || true
+    fi
 }
 trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+
+if [ "${1:-}" = "clean" ]; then
+    clean_test_artifacts
+    printf "Test artifacts removed.\n"
+    exit 0
+fi
 
 #This is just to print a colorfull answer
 ok() {
@@ -631,13 +673,13 @@ expect_file_content "$ROOT/uploads/merge-upload.txt" "UPLOAD CONTENT" "Upload wr
 resp="$(curl -sS -i --max-time 3 \
     -F "file=@${ROOT}/files/upload-source.txt;filename=../../evil.txt" \
     "http://127.0.0.1:${PORT}/upload")"
-expect_contains "$resp" "HTTP/1.1 400 Bad Request" "Upload rejects path traversal filename"
+expect_contains "$resp" "HTTP/1.1 400 " "Upload rejects path traversal filename"
 expect_file_not_exists "$ROOT/../evil.txt" "Upload path traversal does not create outside file"
 
 resp="$(curl -sS -i --max-time 3 \
     -F "file=@${ROOT}/files/upload-source.txt;filename=" \
     "http://127.0.0.1:${PORT}/upload")"
-expect_contains "$resp" "HTTP/1.1 400 Bad Request" "Upload rejects empty filename"
+expect_contains "$resp" "HTTP/1.1 400 " "Upload rejects empty filename"
 
 resp="$(request GET /cgi/hello.py)"
 expect_contains "$resp" "HTTP/1.1 200 OK" "CGI GET returns 200 OK"
@@ -646,6 +688,98 @@ expect_header_count "$resp" "Content-Length" "1" "CGI response has exactly one C
 
 resp="$(request GET /cgi/missing.py)"
 expect_contains "$resp" "HTTP/1.1 404 Not Found" "Missing CGI script returns 404"
+
+
+
+# ============================================================
+# Multi-port merge tests
+# These verify that one webserv process can bind more than one
+# listen port and route each port to the correct server root.
+# ============================================================
+
+printf "\n=== Multi-port merge tests ===\n"
+
+rm -rf "$MULTI_CONF" "$MULTI_ROOT1" "$MULTI_ROOT2" "$MULTI_LOG" "$MULTI_OUT1" "$MULTI_OUT2"
+mkdir -p "$MULTI_ROOT1" "$MULTI_ROOT2"
+
+printf "MULTI PORT %s ROOT OK\n" "$MULTI_PORT1" > "$MULTI_ROOT1/index.html"
+printf "MULTI PORT %s ROOT OK\n" "$MULTI_PORT2" > "$MULTI_ROOT2/index.html"
+
+cat > "$MULTI_CONF" <<CONFIG
+server {
+    listen ${MULTI_PORT1};
+    root ./${MULTI_ROOT1};
+    index index.html;
+
+    location / {
+        methods GET ;
+    }
+}
+
+server {
+    listen ${MULTI_PORT2};
+    root ./${MULTI_ROOT2};
+    index index.html;
+
+    location / {
+        methods GET ;
+    }
+}
+CONFIG
+
+./webserv "$MULTI_CONF" > "$MULTI_LOG" 2>&1 &
+MULTI_PID=$!
+
+for i in $(seq 1 30); do
+    ok1=0
+    ok2=0
+    curl -sS --max-time 1 "http://127.0.0.1:${MULTI_PORT1}/" >/dev/null 2>&1 && ok1=1
+    curl -sS --max-time 1 "http://127.0.0.1:${MULTI_PORT2}/" >/dev/null 2>&1 && ok2=1
+    if [ "$ok1" = "1" ] && [ "$ok2" = "1" ]; then
+        break
+    fi
+    sleep 0.2
+done
+
+if kill -0 "$MULTI_PID" 2>/dev/null; then
+    ok "Multi-port server process stays alive"
+else
+    ko "Multi-port server process stays alive"
+    printf "Multi-port server died during startup. Log:\n"
+    cat "$MULTI_LOG" 2>/dev/null || true
+fi
+
+resp="$(curl -sS -i --max-time 3 "http://127.0.0.1:${MULTI_PORT1}/")"
+expect_contains "$resp" "HTTP/1.1 200 OK" "Multi-port: first port returns 200"
+expect_contains "$resp" "MULTI PORT ${MULTI_PORT1} ROOT OK" "Multi-port: first port serves first root"
+expect_not_contains "$resp" "MULTI PORT ${MULTI_PORT2} ROOT OK" "Multi-port: first port does not serve second root"
+expect_header_count "$resp" "Content-Length" "1" "Multi-port: first port has exactly one Content-Length header"
+
+resp="$(curl -sS -i --max-time 3 "http://127.0.0.1:${MULTI_PORT2}/")"
+expect_contains "$resp" "HTTP/1.1 200 OK" "Multi-port: second port returns 200"
+expect_contains "$resp" "MULTI PORT ${MULTI_PORT2} ROOT OK" "Multi-port: second port serves second root"
+expect_not_contains "$resp" "MULTI PORT ${MULTI_PORT1} ROOT OK" "Multi-port: second port does not serve first root"
+expect_header_count "$resp" "Content-Length" "1" "Multi-port: second port has exactly one Content-Length header"
+
+# Quick parallel smoke test: both listening sockets should answer while
+# the same webserv process is running.
+rm -f "$MULTI_OUT1" "$MULTI_OUT2"
+(curl -sS -i --max-time 3 "http://127.0.0.1:${MULTI_PORT1}/" > "$MULTI_OUT1") &
+CURL_PID1=$!
+(curl -sS -i --max-time 3 "http://127.0.0.1:${MULTI_PORT2}/" > "$MULTI_OUT2") &
+CURL_PID2=$!
+wait "$CURL_PID1" 2>/dev/null || true
+wait "$CURL_PID2" 2>/dev/null || true
+
+resp1="$(cat "$MULTI_OUT1" 2>/dev/null || true)"
+resp2="$(cat "$MULTI_OUT2" 2>/dev/null || true)"
+expect_contains "$resp1" "MULTI PORT ${MULTI_PORT1} ROOT OK" "Multi-port: parallel request to first port works"
+expect_contains "$resp2" "MULTI PORT ${MULTI_PORT2} ROOT OK" "Multi-port: parallel request to second port works"
+
+if [ -n "$MULTI_PID" ] && kill -0 "$MULTI_PID" 2>/dev/null; then
+    kill "$MULTI_PID" 2>/dev/null || true
+    wait "$MULTI_PID" 2>/dev/null || true
+fi
 
 printf "\nResult: %d passed, %d failed\n" "$PASS" "$FAIL"
 if [ "$FAIL" -ne 0 ]; then

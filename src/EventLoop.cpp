@@ -58,6 +58,21 @@ void EventLoop::rebuildPollFds()
         clientEntry.revents = 0;
         _pollFds.push_back(clientEntry);
     }
+    // CGI update (7 july, by Noor)
+    // Also watch the pipe fd of any active CGI process, 
+    // so poll() tells us when script output is ready to read
+    for (auto& pair : _store.all())
+    {
+        ClientConnection* conn = pair.second.get();
+        if (conn->hasCgiPipe())
+        {
+            pollfd cgiEntry;
+            cgiEntry.fd = conn->cgiPipeFd();
+            cgiEntry.events = POLLIN;
+            cgiEntry.revents = 0;
+            _pollFds.push_back(cgiEntry);
+        }
+    }
 }
 
 // dispatchEvents() checks what poll() found and calls the right handler.
@@ -105,8 +120,29 @@ void EventLoop::dispatchEvents()
             }
             continue;
         }
-
+        // CGI update (7 july, by Noor)
+        // Check if this fd is a CGI pipe fd from one of our active connections.
+        // We use _listenerConfigs as our memory to recognise listener fds,
+        // so anything not in that map and not a client socket must be a CGI pipe.
         // --- Client fd: something happened on an existing connection ---
+        bool isCgiPipe = false;
+        ClientConnection* cgiConn = nullptr;
+        for (auto& pair : _store.all())
+        {
+            if (pair.second->hasCgiPipe() && pair.second->cgiPipeFd() == p.fd)
+            {
+                isCgiPipe = true;
+                cgiConn = pair.second.get();
+                break;
+            }
+        }
+        if (isCgiPipe)
+        {
+            if (cgiConn)
+                cgiConn->onCgiReadable();
+            continue;
+        }
+        // Client fd: something happened on an existing connection
         ClientConnection* conn = _store.get(p.fd);
         if (!conn)
             continue; // Connection was already removed this iteration - skip

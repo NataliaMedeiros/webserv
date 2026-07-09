@@ -162,7 +162,8 @@ void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std
 	{
 		size_t sep = lines[i].find(":"); //: is the separator
 		if (sep == std::string::npos)
-			continue; //it will skip the line
+			throw std::runtime_error("malformed header line");
+		//	continue; //it will skip the line
 
 		std::string key = toLower(trim(lines[i].substr(0, sep))); //before the separator
 		std::string value = trim(lines[i].substr(sep + 1)); //after the separator
@@ -397,7 +398,7 @@ bool HttpRequestParser::parseChunkedBody(HttpRequest& req,
     return false;
 }
 
-// The browser by default keeps the connection OPEN, until it finds 
+// The browser by default keeps the connection OPEN, until it finds
 static bool shouldKeepAlive(const HttpRequest& req)
 {
     std::map<std::string, std::string>::const_iterator it =
@@ -409,7 +410,7 @@ static bool shouldKeepAlive(const HttpRequest& req)
     return HttpRequestParser::toLower(it->second) != "close";  // now it works because toLower is a public member now
 }
 /* Note for function ShouldKeepAlive:
-Noor: So the ShouldKeepAlive functions searches in the header folder to the key "connection".  
-Headers are during parsing always saved as a key in small letters (with the toLower(trim()) function in parseHeaders). 
-So here in this function we searh for "conecction", this always works, 
+Noor: So the ShouldKeepAlive functions searches in the header folder to the key "connection".
+Headers are during parsing always saved as a key in small letters (with the toLower(trim()) function in parseHeaders).
+So here in this function we searh for "conecction", this always works,
 even if the browser "Connection:code" sends with Capitals in it) */

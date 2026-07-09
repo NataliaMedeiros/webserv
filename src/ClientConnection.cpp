@@ -1,5 +1,6 @@
 #include "ClientConnection.hpp"
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <cerrno>
 #include <iostream>
 
@@ -193,7 +194,7 @@ void ClientConnection::handleRequest(const HttpRequest& req)
 // }
 
 // startCgi() forks a child process to run a CGI script.
-// The child runs the script via execve(). The parent keeps the 
+// The child runs the script via execve(). The parent keeps the
 // read end of the pipe so EventLoop can poll() it for output
 void ClientConnection::startCgi(const std::string& executable,
                                 const std::string& scriptPath,
@@ -201,7 +202,7 @@ void ClientConnection::startCgi(const std::string& executable,
                                 const std::string& body)
 {
     (void)body; // temporarily unused, Sara will wire in the request body later
-    // Create a pipe: read end, pipefd[1] = write end 
+    // Create a pipe: read end, pipefd[1] = write end
     int pipefd[2];
     if (::pipe(pipefd) < 0)
     {

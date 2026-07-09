@@ -1,6 +1,6 @@
 #include "ConnectionStore.hpp"
 
-// Noor: I deleted the whole constructor here, because 
+// Noor: I deleted the whole constructor here, because
 // ConnectionStore no longer holds a global ServerConfig.
 // Each client now receives the correct config via add(fd, config),
 // passed in by EventLoop which knows which listener the client came from.

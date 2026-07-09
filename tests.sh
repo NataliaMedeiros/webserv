@@ -218,6 +218,18 @@ print("<h1>Hello CGI</h1>")
 PYCGI
 chmod +x "$ROOT/cgi/hello.py"
 
+cat > "$ROOT/cgi/echo_body.py" <<'PYCGI'
+#!/usr/bin/env python3
+import sys
+
+body = sys.stdin.read()
+
+print("Content-Type: text/plain")
+print()
+print(body)
+PYCGI
+chmod +x "$ROOT/cgi/echo_body.py"
+
 cat > "$CONF" <<CONFIG
 server {
     listen ${PORT};
@@ -573,6 +585,14 @@ expect_raw_status "GET / HTTP/1.1\r\nHost localhost\r\nConnection: close\r\n\r\n
                   "400" \
                   "Parser rejects header without colon"
 
+expect_raw_status "GET / HTTP/1.1\r\nHost: localhost\r\nBrokenHeader\r\nConnection: close\r\n\r\n" \
+                  "400" \
+                  "Parser rejects malformed header line even with valid Host"
+
+expect_raw_status "GET / HTTP/1.1\r\nHost:\r\nConnection: close\r\n\r\n" \
+                  "400" \
+                  "Parser rejects empty Host header"
+
 expect_raw_status "POST /post-allowed/hello.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: abc\r\nConnection: close\r\n\r\n" \
                   "400" \
                   "Parser rejects non-numeric Content-Length"
@@ -688,6 +708,12 @@ expect_header_count "$resp" "Content-Length" "1" "CGI response has exactly one C
 
 resp="$(request GET /cgi/missing.py)"
 expect_contains "$resp" "HTTP/1.1 404 Not Found" "Missing CGI script returns 404"
+
+resp="$(raw_request "POST /cgi/echo_body.py HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n")"
+
+expect_contains "$resp" "HTTP/1.1 200 OK" "CGI accepts chunked POST request"
+expect_contains "$resp" "Wikipedia" "CGI receives unchunked request body"
+expect_not_contains "$resp" "4\r\nWiki" "CGI body does not contain raw chunk size"
 
 
 

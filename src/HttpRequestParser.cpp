@@ -57,7 +57,8 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 		_buf.clear();
 		return BadRequest;
 	}
-	if (tmp.headers.find("host") == tmp.headers.end())
+	std::map<std::string, std::string>::const_iterator hostIt = tmp.headers.find("host");
+	if (hostIt == tmp.headers.end() || trim(hostIt->second).empty())
 	{
 		_buf.clear();
 		return BadRequest;

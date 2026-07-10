@@ -231,7 +231,7 @@ bool HttpRequestParser::parseBody(HttpRequest& req,
 
 bool HttpRequestParser::isValidMethod(const std::string& method)
 {
-	return method == "GET" || method == "POST" || method == "DELETE";
+	return method == "GET" || method == "POST" || method == "DELETE" || method == "HEAD" ;
 }
 
 bool HttpRequestParser::isValidVersion(const std::string& version)

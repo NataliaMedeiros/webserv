@@ -124,24 +124,33 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after index");
         }
-        else if (key == "autoindex") //not yet implemented
+        else if (key == "autoindex")
         {
             loc.autoindex = (tokens[i] == "on" || tokens[i] == "true" || tokens[i] == "1");
             ++i;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after autoindex");
         }
-        else if (key == "upload_dir") //not yet implemented
+        else if (key == "upload_dir")
         {
             loc.uploadPath = tokens[i++];
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after upload_dir");
         }
-        else if (key == "cgi") //not yet implemented
+        else if (key == "cgi") 
         {
             loc.cgiPass = tokens[i++];
+
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after cgi");
+        }
+        else if (key == "cgi_ext") 
+        {
+            loc.cgiExtension = tokens[i++];
+            std::cout << "cgi_extension tokens size=" << tokens.size()
+                        << " i=" << i << std::endl;
+            if (i >= tokens.size() || tokens[i] != ";")
+                throw std::runtime_error("missing ; after cgi_ext");
         }
         else if (key == "methods") 
         {

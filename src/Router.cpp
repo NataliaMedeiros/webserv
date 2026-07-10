@@ -60,6 +60,7 @@ RouteDecision Router::route(const HttpRequest& req) const
             best.autoindex = loc.autoindex;
             best.uploadPath = loc.uploadPath;
             best.cgiPass = loc.cgiPass;
+            best.cgiExtension = loc.cgiExtension;
             best.methods = loc.methods;
             best.redirectCode = loc.redirectCode;
             best.redirectUrl = loc.redirectUrl;

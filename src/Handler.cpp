@@ -163,6 +163,18 @@ static bool isPathInsideRoot(const std::string& root, const std::string& candida
 
     return pathBeginsWithPath(realRoot, realCandidate);
 }
+// Check if the path has the specified extension.
+
+static bool hasExtension(const std::string& path, const std::string& ext)
+{
+    if (ext.empty())
+        return false;
+
+    if (path.size() < ext.size())
+        return false;
+
+    return path.compare(path.size() - ext.size(), ext.size(), ext) == 0;
+}
 
 /*
  * Escape special HTML characters used in generated pages.
@@ -543,12 +555,12 @@ HttpResponse Handler::handleCgi(const RouteDecision& rd,
         envp.push_back(NULL);
 
         char* argv[] = {
-            const_cast<char*>(fullPath.c_str()),
+            const_cast<char*>(rd.cgiPass.c_str()),
             NULL
         };
 
-        execve(fullPath.c_str(), argv, &envp[0]);
-
+        execve(rd.cgiPass.c_str(), argv, &envp[0]);
+        perror("execve failed");
         _exit(1);
     }
 
@@ -573,8 +585,10 @@ HttpResponse Handler::handleCgi(const RouteDecision& rd,
     waitpid(pid, &status, 0);
 
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+    {
+        std::cerr << "CGI exit status: " << status << std::endl;
         return makeError(rd, 502, "Bad Gateway");
-
+    }
     HttpResponse res;
     res.status = 200;
     res.reason = HttpResponse::reasonPhrase(200);
@@ -690,6 +704,7 @@ HttpResponse Handler::handleDelete(const RouteDecision& rd,
  */
 HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
 {
+    
     if (rd.redirectCode != 0)
         return handleRedirect(rd);
 
@@ -708,7 +723,7 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
     if (!isPathInsideRoot(rd.root, fullPath))
         return makeError(rd, 403, "Forbidden");
 
-    if (!rd.cgiPass.empty() && req.method != "DELETE")
+    if (!rd.cgiPass.empty() &&  hasExtension(fullPath, rd.cgiExtension))
         return handleCgi(rd, req, fullPath);
 
     if (req.method == "POST" && !rd.uploadPath.empty())
@@ -732,7 +747,7 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
         if (rd.autoindex)
             return handleAutoindex(fullPath, req.path);
 
-        return makeError(rd, 403, "Forbidden");
+        return makeError(rd, 404, "Not Found");
     }
 
     if (req.method == "GET")

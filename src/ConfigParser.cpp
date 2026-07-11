@@ -147,8 +147,6 @@ LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, siz
         else if (key == "cgi_ext") 
         {
             loc.cgiExtension = tokens[i++];
-            std::cout << "cgi_extension tokens size=" << tokens.size()
-                        << " i=" << i << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after cgi_ext");
         }

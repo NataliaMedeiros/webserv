@@ -70,6 +70,13 @@ void ClientConnection::onReadable()
                 std::string(buf, static_cast<size_t>(bytesRead)), req
             );
 
+            if (result == HttpRequestParser::Result::PayloadTooLarge)
+            {
+                std::cout << "Sending status: " << HttpResponse::error(413, "Payload Too Large").status << "\n";
+                queueResponse(HttpResponse::error(413, "Payload Too Large"), false);
+                _state = State::Closing;
+                return;
+            }
             if (result == HttpRequestParser::Result::BadRequest) // before it was RequestParser
             {
                 // The browser sent something we cannot understand - send 400 and close

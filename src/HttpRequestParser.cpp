@@ -21,7 +21,8 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 	if (_buf.size() > MAX_BUFFER_SIZE)
 	{
 		_buf.clear();
-		return BadRequest;
+		std::cerr << "BADREQUEST 1\n";
+		return PayloadTooLarge;
 	}
 
 	// We need the full header section before we can do anything.
@@ -40,6 +41,7 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 	if (lines.empty())
 	{
 		_buf.clear();
+		std::cerr << "BADREQUEST 2\n";
 		return BadRequest;
 	}
 
@@ -49,18 +51,39 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 	{
 		parseFirstLine(tmp, lines[0]);
 		parseHeaders(tmp, lines);
+		std::map<std::string, std::string>::iterator cl =
+    	tmp.headers.find("content-length");
+
+		if (cl != tmp.headers.end())
+		{
+    		long length = std::atol(cl->second.c_str());
+
+    		if (length > static_cast<long>(MAX_BUFFER_SIZE))
+    		{
+       			 _buf.clear();
+        		throw std::runtime_error("PAYLOAD_TOO_LARGE");
+    		}
+		}
 		if (!parseBody(tmp, bodyPart, bodyBytesConsumed))
 			return NeedMore;
 	}
-	catch (const std::exception&)
+	catch (const std::runtime_error& e)
 	{
+    	std::cerr << "Exception: [" << e.what() << "]\n";
+
 		_buf.clear();
+
+    	if (std::string(e.what()) == "PAYLOAD_TOO_LARGE")
+        	return PayloadTooLarge;
+
+    	std::cerr << "BADREQUEST 3\n";
 		return BadRequest;
 	}
 	std::map<std::string, std::string>::const_iterator hostIt = tmp.headers.find("host");
 	if (hostIt == tmp.headers.end() || trim(hostIt->second).empty())
 	{
 		_buf.clear();
+		std::cerr << "BADREQUEST 4\n";
 		return BadRequest;
 	}
 
@@ -211,7 +234,7 @@ bool HttpRequestParser::parseBody(HttpRequest& req,
         if (iss.fail() || length < 0)
             throw std::runtime_error("invalid Content-Length value");
 		if (length > static_cast<long>(MAX_BUFFER_SIZE))
-    		throw std::runtime_error("Content-Length exceeds maximum");
+    		throw std::runtime_error("PAYLOAD_TOO_LARGE");
         if (static_cast<long>(bodyPart.size()) < length)
             return false;
         req.body = bodyPart.substr(0, static_cast<size_t>(length));

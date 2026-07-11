@@ -36,5 +36,6 @@ class Handler
         HttpResponse makeError(const RouteDecision& rd, int code, const std::string& message);
         std::string  joinAllowedMethods(const RouteDecision& rd) const;
         bool         parseMultipart(const HttpRequest& req, std::string& outFilename, std::string& outFileContent);
+        static bool  hasExtension(const std::string& path, const std::string& ext);
 };
 

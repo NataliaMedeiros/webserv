@@ -165,14 +165,10 @@ static bool isPathInsideRoot(const std::string& root, const std::string& candida
 }
 // Check if the path has the specified extension.
 
-static bool hasExtension(const std::string& path, const std::string& ext)
+bool Handler::hasExtension(const std::string& path, const std::string& ext)
 {
-    if (ext.empty())
+    if (ext.empty() || path.size() < ext.size())
         return false;
-
-    if (path.size() < ext.size())
-        return false;
-
     return path.compare(path.size() - ext.size(), ext.size(), ext) == 0;
 }
 
@@ -708,13 +704,6 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
     if (rd.redirectCode != 0)
         return handleRedirect(rd);
 
-    if (!isMethodAllowed(rd, req.method))
-    {
-        HttpResponse res = makeError(rd, 405, "Method Not Allowed");
-        res.setHeader("Allow", joinAllowedMethods(rd));
-        return res;
-    }
-
     if (hasParentDirectorySegment(req.path))
         return makeError(rd, 403, "Forbidden");
 
@@ -722,10 +711,24 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
 
     if (!isPathInsideRoot(rd.root, fullPath))
         return makeError(rd, 403, "Forbidden");
-
-    if (!rd.cgiPass.empty() &&  hasExtension(fullPath, rd.cgiExtension))
+    std::cout << "CGI DEBUG\n";
+    std::cout << "cgiPass: [" << rd.cgiPass << "]\n";
+    std::cout << "cgiExtension: [" << rd.cgiExtension << "]\n";
+    std::cout << "path: [" << fullPath << "]\n";
+    if (!rd.cgiPass.empty()
+    && (rd.cgiExtension.empty() || hasExtension(fullPath, rd.cgiExtension)))
+    {
+        std::cout << "ENTERING CGI\n";
         return handleCgi(rd, req, fullPath);
-
+    }    
+    
+    if (!isMethodAllowed(rd, req.method))
+    {
+        HttpResponse res = makeError(rd, 405, "Method Not Allowed");
+        res.setHeader("Allow", joinAllowedMethods(rd));
+        return res;
+    }
+    
     if (req.method == "POST" && !rd.uploadPath.empty())
         return handleUpload(rd, req);
 

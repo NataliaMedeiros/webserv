@@ -1,45 +1,3 @@
-# Person 3: Router + Handler + FileSystem
-
-**integrated with main but needs more testing**
-
-Standalone---tested all of following
-### Routing
-- Longest-prefix matching with boundary checks
-- Redirects (301/302/307/308)
-- Per-route allowed methods
-
-### Request handling
-- Handle GET requests for static files
-- Handle DELETE requests
-- Return error responses (404, 405, 500)
-- Alias-style path resolution(subject's kapouet example)
-
-### Config parser
-- Parse server and location blocks
-- Supports: root, index, listen, autoindex, methods,
-  upload_dir, cgi, return
-- Supports inline comments (#)
-- Rejects invalid configs:
-  - Unknown directives
-  - Missing braces
-  - Invalid ports
-  - Missing `server` 
-  - Missing or unreadable config files
-- Default error pages
-
-### Autoindex
-- tested with default_auto_off.conf (with and without index.html)
-- tested with default_auto_on.conf
-
-### Upload
-### Basic CGI
-
-
-## Not yet implemented
-
-- Configuration multi-port 
-- Config Edge Cases like badly written configuration, wrong/non existant directory and locations
-- CGI Edge Cases(no cgi directory, badly written config direction)
 
 ## How to test
 - make
@@ -56,3 +14,8 @@ curl -i http://localhost:8080/cgi/hello.py
 Confirm 200 OK and the body shows <h1>Hello CGI</h1> (or whatever script outputs) 
 - test Upload
 curl -i -F "file=@test.txt" http://localhost:8080/upload
+
+
+## Use the subject tester
+- tester is an executable, download and keep it outside of webserv
+- the other necessary instrunctions comes after running the tester-- all requirements are added in the branch sara_debug

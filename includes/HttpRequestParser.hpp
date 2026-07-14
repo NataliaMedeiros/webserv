@@ -30,10 +30,12 @@ class HttpRequestParser
 		enum Result
 		{
 			NeedMore,
+			HeadersComplete,
 			Complete,
 			BadRequest,
 			PayloadTooLarge
 		};
+
 
 		// Maximum bytes we will buffer before giving up.
 		// Protects against clients that send endless headers (slow loris).

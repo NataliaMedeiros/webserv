@@ -6,13 +6,24 @@
 Router::Router(const ServerConfig& servInput) : servConfig(&servInput)
 {}
 
-static void copyServerDefaults(RouteDecision& decision, const ServerConfig& config)
+// static void copyServerDefaults(RouteDecision& decision, const ServerConfig& config)
+// {
+//     if (!config.root.empty())
+//         decision.root = config.root;
+//     if (!config.index.empty())
+//         decision.index = config.index;
+//     decision.errorPages = config.errorPages;
+// }
+static void copyServerDefaults(RouteDecision& decision,const ServerConfig& config)
 {
     if (!config.root.empty())
         decision.root = config.root;
+
     if (!config.index.empty())
         decision.index = config.index;
+
     decision.errorPages = config.errorPages;
+    decision.maxBodySize = config.maxBodySize;
 }
 
 // route() — finds the best matching location for the request URI.

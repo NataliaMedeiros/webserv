@@ -75,15 +75,30 @@ RouteDecision Router::route(const HttpRequest& req) const
             best.methods = loc.methods;
             best.redirectCode = loc.redirectCode;
             best.redirectUrl = loc.redirectUrl;
-
+            if (loc.hasMaxBodySize)
+            {
+                best.maxBodySize = loc.maxBodySize;
+            }
             best.errorPages = servConfig->errorPages;
             for (std::map<int, std::string>::const_iterator ep = loc.errorPages.begin();
                  ep != loc.errorPages.end(); ++ep)
             {
                 best.errorPages[ep->first] = ep->second;
             }
+            std::cerr
+    << "LOCATION: " << loc.path
+    << " hasMaxBodySize: " << loc.hasMaxBodySize
+    << " value: " << loc.maxBodySize
+    << std::endl;
         }
     }
+
+
+  std::cerr << "ROUTE TEST: "
+          << req.path
+          << " -> "
+          << best.maxBodySize
+          << std::endl;
 
     return best;
 }

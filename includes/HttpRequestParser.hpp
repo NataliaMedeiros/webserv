@@ -11,7 +11,9 @@
 class HttpRequestParser
 {
 	private:
+		
 		std::string _buf;
+		HttpRequest _currentRequest;
 		static std::string trim(const std::string& s);
 		size_t findHeaderEnd(const std::string& raw);
 		void splitHeaderBody(const std::string& raw, std::string& headerPart, std::string& bodyPart);
@@ -23,7 +25,9 @@ class HttpRequestParser
 		static bool isValidVersion(const std::string& version);
 		void splitPathQuery(HttpRequest& req);
 		static void parseQueryString(HttpRequest& req);
-		static bool parseChunkedBody(HttpRequest& req, const std::string& bodyPart, size_t& bytesConsumed);
+		// static bool parseChunkedBody(HttpRequest& req, const std::string& bodyPart, size_t& bytesConsumed);
+		bool parseChunkedBody(HttpRequest& req, const std::string& bodyPart, size_t& bytesConsumed);
+		size_t maxBodySize;
 
 	public:
 		// bool parse(const std::string& raw, HttpRequest& request);
@@ -41,6 +45,9 @@ class HttpRequestParser
 		// Protects against clients that send endless headers (slow loris).
 		// The real limit comes from the config file (client_max_body_size).
 		// This is a hard safety ceiling — Sara's config value should be lower.
+		HttpRequestParser();
+		void setMaxBodySize(size_t size);
+		const HttpRequest& currentRequest() const;
 		static const size_t MAX_BUFFER_SIZE = 8 * 1024 * 1024; // 8 MB
 		static std::string toLower(std::string s); // Noor: moved it to public! and made static
 		Result feed(const std::string& chunk, HttpRequest& req);

@@ -19,12 +19,21 @@ struct RouteDecision
     std::string              redirectUrl;  // target URL for redirect (empty if no redirect)
     std::string              locationPath; // the matched location's path, e.g. "/images"
     std::map<int, std::string> errorPages; // configured error_page directives
-    
+    size_t maxBodySize;
 
-    RouteDecision()//setting default values for the fields in case they are not set by the configuration file
+
+    // RouteDecision()//setting default values for the fields in case they are not set by the configuration file
+    //     : root("./www")
+    //     , index("index.html")
+    //     , autoindex(false)
+    //     , redirectCode(0)
+    // {}
+
+    RouteDecision()
         : root("./www")
         , index("index.html")
         , autoindex(false)
         , redirectCode(0)
+        , maxBodySize(1024 * 1024)
     {}
 };

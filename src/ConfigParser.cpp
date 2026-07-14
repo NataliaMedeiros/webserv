@@ -3,6 +3,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <iostream>
+#include <limits>
+#include <cctype>
 
 // ─────────────────────────────────────────────
 // tokenize()
@@ -20,7 +22,7 @@ std::vector<std::string> ConfigParser::tokenize(const std::string& text)
     for (size_t i = 0; i < text.size(); ++i)
     {
         char c = text[i];
-        if (c == '#') 
+        if (c == '#')
         {
             while (i < text.size() && text[i] != '\n') ++i;
             continue;// Skip comments: from # to end of line
@@ -33,7 +35,7 @@ std::vector<std::string> ConfigParser::tokenize(const std::string& text)
             continue;
         }
         // Whitespace ends the temp token
-        if (std::isspace(static_cast<unsigned char>(c))) 
+        if (std::isspace(static_cast<unsigned char>(c)))
         {
             if (!temp.empty()) { tokens.push_back(temp); temp.clear(); }
             continue;
@@ -72,21 +74,115 @@ static void parseListen(const std::string& value, ServerConfig& srv)
 // parseSize()
 // Accepts plain bytes ("1000000") or suffixed ("10M", "500K")
 // ─────────────────────────────────────────────
+// static size_t parseSize(const std::string& value)
+// {
+//     if (value.empty())
+//         throw std::runtime_error("empty client_max_body_size value");
+
+//     char suffix = value.back();
+//     size_t multiplier = 1;
+//     std::string numPart = value;
+
+//     if (suffix == 'K' || suffix == 'k') { multiplier = 1024; numPart = value.substr(0, value.size() - 1); }
+//     else if (suffix == 'M' || suffix == 'm') { multiplier = 1024 * 1024; numPart = value.substr(0, value.size() - 1); }
+//     else if (suffix == 'G' || suffix == 'g') { multiplier = 1024 * 1024 * 1024; numPart = value.substr(0, value.size() - 1); }
+
+//     try { return static_cast<size_t>(std::stoul(numPart)) * multiplier; }
+//     catch (...) { throw std::runtime_error("invalid client_max_body_size: " + value); }
+// }
+
 static size_t parseSize(const std::string& value)
 {
     if (value.empty())
-        throw std::runtime_error("empty client_max_body_size value");
+    {
+        throw std::runtime_error(
+            "empty client_max_body_size value"
+        );
+    }
 
-    char suffix = value.back();
-    size_t multiplier = 1;
-    std::string numPart = value;
+    size_t numberLength = value.size();
+    unsigned long long multiplier = 1;
 
-    if (suffix == 'K' || suffix == 'k') { multiplier = 1024; numPart = value.substr(0, value.size() - 1); }
-    else if (suffix == 'M' || suffix == 'm') { multiplier = 1024 * 1024; numPart = value.substr(0, value.size() - 1); }
-    else if (suffix == 'G' || suffix == 'g') { multiplier = 1024 * 1024 * 1024; numPart = value.substr(0, value.size() - 1); }
+    const char suffix = value[value.size() - 1];
 
-    try { return static_cast<size_t>(std::stoul(numPart)) * multiplier; }
-    catch (...) { throw std::runtime_error("invalid client_max_body_size: " + value); }
+    if (suffix == 'K' || suffix == 'k')
+    {
+        multiplier = 1024ULL;
+        --numberLength;
+    }
+    else if (suffix == 'M' || suffix == 'm')
+    {
+        multiplier = 1024ULL * 1024ULL;
+        --numberLength;
+    }
+    else if (suffix == 'G' || suffix == 'g')
+    {
+        multiplier = 1024ULL * 1024ULL * 1024ULL;
+        --numberLength;
+    }
+
+    if (numberLength == 0)
+    {
+        throw std::runtime_error(
+            "invalid client_max_body_size: " + value
+        );
+    }
+
+    const std::string numberPart =
+        value.substr(0, numberLength);
+
+    for (size_t i = 0; i < numberPart.size(); ++i)
+    {
+        if (!std::isdigit(
+                static_cast<unsigned char>(numberPart[i])
+            ))
+        {
+            throw std::runtime_error(
+                "invalid client_max_body_size: " + value
+            );
+        }
+    }
+
+    unsigned long long number = 0;
+    size_t parsedCharacters = 0;
+
+    try
+    {
+        number = std::stoull(
+            numberPart,
+            &parsedCharacters,
+            10
+        );
+    }
+    catch (...)
+    {
+        throw std::runtime_error(
+            "invalid client_max_body_size: " + value
+        );
+    }
+
+    if (parsedCharacters != numberPart.size())
+    {
+        throw std::runtime_error(
+            "invalid client_max_body_size: " + value
+        );
+    }
+
+    const unsigned long long maxSize =
+        static_cast<unsigned long long>(
+            std::numeric_limits<size_t>::max()
+        );
+
+    if (number > maxSize / multiplier)
+    {
+        throw std::runtime_error(
+            "client_max_body_size is too large: " + value
+        );
+    }
+
+    return static_cast<size_t>(
+        number * multiplier
+    );
 }
 
 // ─────────────────────────────────────────────
@@ -95,108 +191,346 @@ static size_t parseSize(const std::string& value)
 // Called after we've seen "location <path> {".
 // Reads directives until we hit "}".
 // ─────────────────────────────────────────────
-LocationConfig ConfigParser::parseLocation(std::vector<std::string>& tokens, size_t& i)
+LocationConfig ConfigParser::parseLocation(
+    std::vector<std::string>& tokens,
+    size_t& i
+)
 {
     LocationConfig loc;
 
-    // Expect: location <path> {
-    if (i >= tokens.size()) throw std::runtime_error("expected location path");
+    // Expected syntax:
+    // location <path> {
+    if (i >= tokens.size()
+        || tokens[i] == "{"
+        || tokens[i] == "}"
+        || tokens[i] == ";")
+    {
+        throw std::runtime_error(
+            "expected location path"
+        );
+    }
+
     loc.path = tokens[i++];
 
     if (i >= tokens.size() || tokens[i] != "{")
-        throw std::runtime_error("expected { after location path");
-    ++i;
+    {
+        throw std::runtime_error(
+            "expected { after location path"
+        );
+    }
 
-    // Read directives until }
+    ++i; // consume '{'
+
     while (i < tokens.size() && tokens[i] != "}")
     {
-        const std::string& key = tokens[i++];
+        const std::string key = tokens[i++];
 
-        if (key == "root") 
+        if (key == "root")
         {
-            loc.root = tokens[i++];//assign the next token to root and move to next token
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "root directive missing path"
+                );
+            }
+
+            loc.root = tokens[i++];
+
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after root");
+            {
+                throw std::runtime_error(
+                    "missing ; after root"
+                );
+            }
         }
-        else if (key == "index") 
+        else if (key == "index")
         {
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "index directive missing filename"
+                );
+            }
+
             loc.index = tokens[i++];
+
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after index");
+            {
+                throw std::runtime_error(
+                    "missing ; after index"
+                );
+            }
         }
         else if (key == "autoindex")
         {
-            loc.autoindex = (tokens[i] == "on" || tokens[i] == "true" || tokens[i] == "1");
-            ++i;
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "autoindex directive missing value"
+                );
+            }
+
+            const std::string value = tokens[i++];
+
+            if (value == "on"
+                || value == "true"
+                || value == "1")
+            {
+                loc.autoindex = true;
+            }
+            else if (value == "off"
+                || value == "false"
+                || value == "0")
+            {
+                loc.autoindex = false;
+            }
+            else
+            {
+                throw std::runtime_error(
+                    "invalid autoindex value: " + value
+                );
+            }
+
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after autoindex");
+            {
+                throw std::runtime_error(
+                    "missing ; after autoindex"
+                );
+            }
         }
         else if (key == "upload_dir")
         {
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "upload_dir directive missing path"
+                );
+            }
+
             loc.uploadPath = tokens[i++];
+
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after upload_dir");
+            {
+                throw std::runtime_error(
+                    "missing ; after upload_dir"
+                );
+            }
         }
-        else if (key == "cgi") 
+        else if (key == "cgi")
         {
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "cgi directive missing executable"
+                );
+            }
+
             loc.cgiPass = tokens[i++];
 
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after cgi");
+            {
+                throw std::runtime_error(
+                    "missing ; after cgi"
+                );
+            }
         }
-        else if (key == "cgi_ext") 
+        else if (key == "cgi_ext")
         {
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "cgi_ext directive missing extension"
+                );
+            }
+
             loc.cgiExtension = tokens[i++];
+
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after cgi_ext");
+            {
+                throw std::runtime_error(
+                    "missing ; after cgi_ext"
+                );
+            }
         }
-        else if (key == "methods") 
+        else if (key == "methods")
         {
-            // Read words until ;
-            while (i < tokens.size() && tokens[i] != ";" && tokens[i] != "}")
-                loc.methods.push_back(tokens[i++]); //add the method to the methods vector and move to next token
+            bool hasMethod = false;
+
+            while (i < tokens.size()
+                && tokens[i] != ";"
+                && tokens[i] != "}")
+            {
+                loc.methods.push_back(tokens[i++]);
+                hasMethod = true;
+            }
+
+            if (!hasMethod)
+            {
+                throw std::runtime_error(
+                    "methods directive missing methods"
+                );
+            }
+
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after methods");
+            {
+                throw std::runtime_error(
+                    "missing ; after methods"
+                );
+            }
         }
         else if (key == "error_page")
         {
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "error_page directive missing status code"
+                );
+            }
+
+            const std::string codeString = tokens[i++];
             int code;
-            try { code = std::stoi(tokens[i++]); }
-            catch (...) { throw std::runtime_error("invalid error_page code: " + tokens[i-1]); }
-            if (i >= tokens.size() || tokens[i] == ";" || tokens[i] == "}")
-                throw std::runtime_error("error_page missing file path");
+
+            try
+            {
+                code = std::stoi(codeString);
+            }
+            catch (...)
+            {
+                throw std::runtime_error(
+                    "invalid error_page code: " + codeString
+                );
+            }
+
+            if (code < 300 || code > 599)
+            {
+                throw std::runtime_error(
+                    "error_page code out of range: "
+                    + codeString
+                );
+            }
+
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "error_page directive missing file path"
+                );
+            }
+
             loc.errorPages[code] = tokens[i++];
+
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after error_page");
+            {
+                throw std::runtime_error(
+                    "missing ; after error_page"
+                );
+            }
         }
-        else if (key == "return") 
+        else if (key == "return")
         {
-            
-            try { loc.redirectCode = std::stoi(tokens[i++]); }//stoi() converts a string to an integer;assign the next token to port and move to next token
-            catch (...) { throw std::runtime_error("invalid redirectCode: " + tokens[i-1]); }
-            if (i >= tokens.size() || tokens[i] == ";" || tokens[i] == "}")//no URL provided after code
-                throw std::runtime_error("return directive missing URL");
-            loc.redirectUrl  = tokens[i++];
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "return directive missing status code"
+                );
+            }
+
+            const std::string codeString = tokens[i++];
+
+            try
+            {
+                loc.redirectCode = std::stoi(codeString);
+            }
+            catch (...)
+            {
+                throw std::runtime_error(
+                    "invalid redirect code: " + codeString
+                );
+            }
+
+            if (loc.redirectCode < 300
+                || loc.redirectCode > 399)
+            {
+                throw std::runtime_error(
+                    "redirect code out of range: "
+                    + codeString
+                );
+            }
+
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "return directive missing URL"
+                );
+            }
+
+            loc.redirectUrl = tokens[i++];
+
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after return");
+            {
+                throw std::runtime_error(
+                    "missing ; after return"
+                );
+            }
         }
-         else if (key == "client_max_body_size")
+        else if (key == "client_max_body_size")
         {
+            if (i >= tokens.size()
+                || tokens[i] == ";"
+                || tokens[i] == "}")
+            {
+                throw std::runtime_error(
+                    "client_max_body_size missing value"
+                );
+            }
+
             loc.maxBodySize = parseSize(tokens[i++]);
+            loc.hasMaxBodySize = true;
+
             if (i >= tokens.size() || tokens[i] != ";")
-                throw std::runtime_error("missing ; after client_max_body_size");
+            {
+                throw std::runtime_error(
+                    "missing ; after client_max_body_size");
+            }
         }
-        else 
+        else
         {
-            throw std::runtime_error("unknown directive in location: " + key);
+            throw std::runtime_error(
+                "unknown directive in location: " + key
+            );
         }
 
-        // Skip the ; after each directive
-        if (i < tokens.size() && tokens[i] == ";") ++i;
+        // Every directive above leaves i pointing to ';'.
+        ++i; // consume ';'
     }
 
-    if (i >= tokens.size()) throw std::runtime_error("missing } for location");
-    ++i; // consume }
+    if (i >= tokens.size() || tokens[i] != "}")
+    {
+        throw std::runtime_error(
+            "missing } for location"
+        );
+    }
+
+    ++i; // consume '}'
 
     return loc;
 }
@@ -222,24 +556,36 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
         {
             std::string value = tokens[i++];
             parseListen(value, srv);
+            std::cerr << "Parsed server listen: "
+                      << srv.host << ":" << srv.port
+                      << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after listen");
         }
-        else if (key == "root") 
+        else if (key == "root")
         {
             srv.root = tokens[i++];
+            std::cerr << "Parsed server root: "
+                      << srv.root
+                      << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after root");
         }
-        else if (key == "index") 
+        else if (key == "index")
         {
             srv.index = tokens[i++];
+            std::cerr << "Parsed server index: "
+                      << srv.index
+                      << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after index");
         }
-        else if (key == "location") 
+        else if (key == "location")
         {
             srv.locations.push_back(parseLocation(tokens, i));
+            std::cerr << "Parsed server location: "
+                      << srv.locations.back().path
+                      << std::endl;
             continue; // parseLocation consumed its own ;/}
         }
         else if (key == "error_page")
@@ -250,21 +596,27 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
             if (i >= tokens.size() || tokens[i] == ";" || tokens[i] == "}")
                 throw std::runtime_error("error_page missing file path");
             srv.errorPages[code] = tokens[i++];
+            std::cerr << "Parsed server error_page: "
+                      << code << " -> " << srv.errorPages[code]
+                      << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after error_page");
         }
          else if (key == "client_max_body_size")
         {
             srv.maxBodySize = parseSize(tokens[i++]);
+            std::cerr << "Parsed server max body: "
+          << srv.maxBodySize
+          << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after client_max_body_size");
         }
-        else if (key == "location")
-        {
-            srv.locations.push_back(parseLocation(tokens, i));
-            continue;
-        }
-        else 
+        // else if (key == "location")
+        // {
+        //     srv.locations.push_back(parseLocation(tokens, i));
+        //     continue;
+        // }
+        else
         {
             throw std::runtime_error("unknown directive in server: " + key);
         }

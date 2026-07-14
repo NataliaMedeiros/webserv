@@ -7,9 +7,25 @@
 #include <vector>
 #include <cstdlib>
 
+HttpRequestParser::HttpRequestParser()
+    : maxBodySize(MAX_BUFFER_SIZE)
+{
+}
+
+void HttpRequestParser::setMaxBodySize(size_t size)
+{
+    maxBodySize = size;
+}
+
+const HttpRequest& HttpRequestParser::currentRequest() const
+{
+    return _currentRequest;
+}
+
 static bool shouldKeepAlive(const HttpRequest& req);
 
 static std::string percentDecode(const std::string& s);
+
 
 HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, HttpRequest& req)
 {
@@ -27,7 +43,7 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 		std::cerr << "URI_TOO_LONG 1\n";
 		return UriTooLong;
 	}
-	
+
 	// We need the full header section before we can do anything.
 	if (findHeaderEnd(_buf) == std::string::npos)
 		return NeedMore;
@@ -61,8 +77,7 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 		// if (cl != tmp.headers.end())
 		// {
     	// 	long length = std::atol(cl->second.c_str());
-
-    	// 	if (length > static_cast<long>(MAX_BUFFER_SIZE))
+    	// 	if (length > static_cast<long>(maxBodySize))
     	// 	{
        	// 		 _buf.clear();
         // 		throw std::runtime_error("PAYLOAD_TOO_LARGE");
@@ -262,7 +277,7 @@ bool HttpRequestParser::parseBody(HttpRequest& req,
         iss >> length;
         if (iss.fail() || length < 0)
             throw std::runtime_error("invalid Content-Length value");
-		if (length > static_cast<long>(MAX_BUFFER_SIZE))
+		if (length > static_cast<long>(maxBodySize))
     		throw std::runtime_error("PAYLOAD_TOO_LARGE");
         if (static_cast<long>(bodyPart.size()) < length)
             return false;
@@ -397,8 +412,8 @@ void HttpRequestParser::parseQueryString(HttpRequest& req)
 // Returns false if more data is needed.
 // Throws on malformed chunk encoding.
 bool HttpRequestParser::parseChunkedBody(HttpRequest& req,
-                                         const std::string& bodyPart,
-                                         size_t& bytesConsumed)
+										const std::string& bodyPart,
+										size_t& bytesConsumed)
 {
     std::string decoded;
     size_t pos = 0;
@@ -444,7 +459,11 @@ bool HttpRequestParser::parseChunkedBody(HttpRequest& req,
         if (bodyPart[dataEnd] != '\r' || bodyPart[dataEnd + 1] != '\n')
             throw std::runtime_error("missing CRLF after chunk data");
 
-        decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
+        //decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
+		if (decoded.size() + static_cast<size_t>(chunkSize) > maxBodySize)
+    throw std::runtime_error("PAYLOAD_TOO_LARGE");
+
+decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
         pos = dataEnd + 2;
     }
 

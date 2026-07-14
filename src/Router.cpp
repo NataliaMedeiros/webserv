@@ -6,13 +6,24 @@
 Router::Router(const ServerConfig& servInput) : servConfig(&servInput)
 {}
 
-static void copyServerDefaults(RouteDecision& decision, const ServerConfig& config)
+// static void copyServerDefaults(RouteDecision& decision, const ServerConfig& config)
+// {
+//     if (!config.root.empty())
+//         decision.root = config.root;
+//     if (!config.index.empty())
+//         decision.index = config.index;
+//     decision.errorPages = config.errorPages;
+// }
+static void copyServerDefaults(RouteDecision& decision,const ServerConfig& config)
 {
     if (!config.root.empty())
         decision.root = config.root;
+
     if (!config.index.empty())
         decision.index = config.index;
+
     decision.errorPages = config.errorPages;
+    decision.maxBodySize = config.maxBodySize;
 }
 
 // route() — finds the best matching location for the request URI.
@@ -64,15 +75,30 @@ RouteDecision Router::route(const HttpRequest& req) const
             best.methods = loc.methods;
             best.redirectCode = loc.redirectCode;
             best.redirectUrl = loc.redirectUrl;
-
+            if (loc.hasMaxBodySize)
+            {
+                best.maxBodySize = loc.maxBodySize;
+            }
             best.errorPages = servConfig->errorPages;
             for (std::map<int, std::string>::const_iterator ep = loc.errorPages.begin();
                  ep != loc.errorPages.end(); ++ep)
             {
                 best.errorPages[ep->first] = ep->second;
             }
+            std::cerr
+    << "LOCATION: " << loc.path
+    << " hasMaxBodySize: " << loc.hasMaxBodySize
+    << " value: " << loc.maxBodySize
+    << std::endl;
         }
     }
+
+
+  std::cerr << "ROUTE TEST: "
+          << req.path
+          << " -> "
+          << best.maxBodySize
+          << std::endl;
 
     return best;
 }

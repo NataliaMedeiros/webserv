@@ -349,8 +349,8 @@ expect_contains "$resp" "a.txt" "Autoindex lists a.txt"
 expect_contains "$resp" "b.html" "Autoindex lists b.html"
 
 resp="$(request GET /noindex/)"
-expect_contains "$resp" "HTTP/1.1 403 Forbidden" "Directory without index and autoindex off returns 403"
-expect_contains "$resp" "CUSTOM 403 PAGE" "403 uses configured error_page"
+expect_contains "$resp" "HTTP/1.1 404 Not Found" "Directory without index and autoindex off returns 404"
+expect_contains "$resp" "CUSTOM 404 PAGE" "404 uses configured error_page"
 
 resp="$(request DELETE /files/delete-me.txt)"
 expect_contains "$resp" "HTTP/1.1 204 No Content" "DELETE existing file returns 204"

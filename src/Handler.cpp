@@ -553,6 +553,7 @@ HttpResponse Handler::handleCgi(const RouteDecision& rd,
 
         char* argv[] = {
             const_cast<char*>(rd.cgiPass.c_str()),
+            const_cast<char*>(fullPath.c_str()),
             NULL
         };
 
@@ -751,7 +752,8 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
         if (rd.autoindex)
             return handleAutoindex(fullPath, req.path);
 
-        return makeError(rd, 404, "Not Found");
+        // return makeError(rd, 404, "Not Found");
+        return makeError(rd, 403, "Forbidden");
     }
 
     if (req.method == "GET")

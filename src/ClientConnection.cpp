@@ -77,6 +77,13 @@ void ClientConnection::onReadable()
                 _state = State::Closing;
                 return;
             }
+            if (result == HttpRequestParser::Result::UriTooLong)
+            {
+                std::cout << "Sending status: " << HttpResponse::error(414, "URI Too Long").status << "\n";
+                queueResponse(HttpResponse::error(414, "URI Too Long"), false);
+                _state = State::Closing;
+                return;
+            }
             if (result == HttpRequestParser::Result::BadRequest) // before it was RequestParser
             {
                 // The browser sent something we cannot understand - send 400 and close

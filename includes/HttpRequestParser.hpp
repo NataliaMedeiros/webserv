@@ -32,7 +32,8 @@ class HttpRequestParser
 			NeedMore,
 			Complete,
 			BadRequest,
-			PayloadTooLarge
+			PayloadTooLarge,
+			UriTooLong
 		};
 
 		// Maximum bytes we will buffer before giving up.

@@ -20,11 +20,14 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 	// forever. Reject early once we exceed the hard ceiling.
 	if (_buf.size() > MAX_BUFFER_SIZE)
 	{
+		// This check runs before findHeaderEnd(), so we are always still
+		// reading the request line or headers here, never the body.
+		// That means the URI or headers are too long, not the payload.
 		_buf.clear();
-		std::cerr << "BADREQUEST 1\n";
-		return PayloadTooLarge;
+		std::cerr << "URI_TOO_LONG 1\n";
+		return UriTooLong;
 	}
-
+	
 	// We need the full header section before we can do anything.
 	if (findHeaderEnd(_buf) == std::string::npos)
 		return NeedMore;

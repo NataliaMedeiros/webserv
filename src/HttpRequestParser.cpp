@@ -51,19 +51,20 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 	{
 		parseFirstLine(tmp, lines[0]);
 		parseHeaders(tmp, lines);
-		std::map<std::string, std::string>::iterator cl =
-    	tmp.headers.find("content-length");
+		// REDUNDANT!! 14 juli, Noor deleted this part:
+		// std::map<std::string, std::string>::iterator cl =
+    	// tmp.headers.find("content-length");
 
-		if (cl != tmp.headers.end())
-		{
-    		long length = std::atol(cl->second.c_str());
+		// if (cl != tmp.headers.end())
+		// {
+    	// 	long length = std::atol(cl->second.c_str());
 
-    		if (length > static_cast<long>(MAX_BUFFER_SIZE))
-    		{
-       			 _buf.clear();
-        		throw std::runtime_error("PAYLOAD_TOO_LARGE");
-    		}
-		}
+    	// 	if (length > static_cast<long>(MAX_BUFFER_SIZE))
+    	// 	{
+       	// 		 _buf.clear();
+        // 		throw std::runtime_error("PAYLOAD_TOO_LARGE");
+    	// 	}
+		// }
 		if (!parseBody(tmp, bodyPart, bodyBytesConsumed))
 			return NeedMore;
 	}
@@ -179,7 +180,27 @@ void HttpRequestParser::parseFirstLine(HttpRequest& request, const std::string& 
 }
 
 // ===== Parse headers =====
-//Entender melhor e checar se é a melhor maneira
+// //Entender melhor e checar se é a melhor maneira
+// void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std::string>& lines)
+// {
+// 	for (size_t i = 1; i < lines.size(); i++) //headers starts at line 1
+// 	{
+// 		size_t sep = lines[i].find(":"); //: is the separator
+// 		if (sep == std::string::npos)
+// 			throw std::runtime_error("malformed header line");
+// 		//	continue; //it will skip the line
+
+// 		std::string key = toLower(trim(lines[i].substr(0, sep))); //before the separator
+// 		std::string value = trim(lines[i].substr(sep + 1)); //after the separator
+// 		// Two different values would let an attacker confuse the server about
+// 		// where one request ends and the next begins.
+// 		if (key.empty())
+// 			continue;
+// 		if (key == "content-length" && request.headers.count(key) > 0)
+// 			throw std::runtime_error("duplicate Content-Length header");
+// 		request.headers[key] = value; //add or update the key value
+// 	}
+// }
 void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std::string>& lines)
 {
 	for (size_t i = 1; i < lines.size(); i++) //headers starts at line 1
@@ -187,14 +208,19 @@ void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std
 		size_t sep = lines[i].find(":"); //: is the separator
 		if (sep == std::string::npos)
 			throw std::runtime_error("malformed header line");
-		//	continue; //it will skip the line
 
-		std::string key = toLower(trim(lines[i].substr(0, sep))); //before the separator
+		// RFC 7230 3.2.4: no whitespace allowed between the header field name
+		// and the colon. Silently trimming it away would hide a smuggling risk.
+		std::string rawKey = lines[i].substr(0, sep);
+		if (!rawKey.empty() && (rawKey[rawKey.size() - 1] == ' ' || rawKey[rawKey.size() - 1] == '\t'))
+			throw std::runtime_error("whitespace before header colon");
+
+		std::string key = toLower(trim(rawKey)); //before the separator
 		std::string value = trim(lines[i].substr(sep + 1)); //after the separator
-		// Two different values would let an attacker confuse the server about
-		// where one request ends and the next begins.
+
 		if (key.empty())
-			continue;
+			throw std::runtime_error("empty header name");
+
 		if (key == "content-length" && request.headers.count(key) > 0)
 			throw std::runtime_error("duplicate Content-Length header");
 		request.headers[key] = value; //add or update the key value

@@ -541,6 +541,7 @@ HttpResponse Handler::handleCgi(const RouteDecision& rd,
         envStrings.push_back("GATEWAY_INTERFACE=CGI/1.1");
         envStrings.push_back("SERVER_PROTOCOL=HTTP/1.1");
         envStrings.push_back("QUERY_STRING=");
+        envStrings.push_back("PATH_INFO=" + req.path);
 
         std::vector<char*> envp;
         for (std::vector<std::string>::iterator it = envStrings.begin();

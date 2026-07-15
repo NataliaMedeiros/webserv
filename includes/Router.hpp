@@ -5,6 +5,7 @@
 #include <vector>
 #include "HttpResponse.hpp"
 #include "ServerConfig.hpp"
+#include <cstddef>
 
 
 // NOTE: Router decides which handler should run, based on request + (later) config.
@@ -16,6 +17,7 @@ class Router
         // Returns the best-matching RouteDecision for this request.
         // Person 1 calls this with the parsed HttpRequest.
         RouteDecision route(const HttpRequest& req) const;
+        size_t maxBodySizeFor(const std::string& path) const;
 
     private:
         const ServerConfig* servConfig;

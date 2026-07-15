@@ -553,6 +553,7 @@ HttpResponse Handler::handleCgi(const RouteDecision& rd,
 
         char* argv[] = {
             const_cast<char*>(rd.cgiPass.c_str()),
+            const_cast<char*>(fullPath.c_str()),
             NULL
         };
 
@@ -701,7 +702,7 @@ HttpResponse Handler::handleDelete(const RouteDecision& rd,
  */
 HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
 {
-    
+
     if (rd.redirectCode != 0)
         return handleRedirect(rd);
 
@@ -721,15 +722,15 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
     {
         std::cout << "ENTERING CGI\n";
         return handleCgi(rd, req, fullPath);
-    }    
-    
+    }
+
     if (!isMethodAllowed(rd, req.method))
     {
         HttpResponse res = makeError(rd, 405, "Method Not Allowed");
         res.setHeader("Allow", joinAllowedMethods(rd));
         return res;
     }
-    
+
     if (req.method == "POST" && !rd.uploadPath.empty())
         return handleUpload(rd, req);
 

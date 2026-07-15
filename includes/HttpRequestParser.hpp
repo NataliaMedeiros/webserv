@@ -7,13 +7,17 @@
 #include <stdexcept>
 #include <cctype>
 #include <vector>
+#include <functional>
+#include <cstddef>
+#include <string>
 
 class HttpRequestParser
 {
 	private:
-		
+
 		std::string _buf;
-		HttpRequest _currentRequest;
+		// HttpRequest _currentRequest;
+		std::function<size_t(const std::string&)> _maxBodySizeFor;
 		static std::string trim(const std::string& s);
 		size_t findHeaderEnd(const std::string& raw);
 		void splitHeaderBody(const std::string& raw, std::string& headerPart, std::string& bodyPart);
@@ -34,7 +38,6 @@ class HttpRequestParser
 		enum Result
 		{
 			NeedMore,
-			HeadersComplete,
 			Complete,
 			BadRequest,
 			PayloadTooLarge,
@@ -42,14 +45,17 @@ class HttpRequestParser
 		};
 
 
-		// Maximum bytes we will buffer before giving up.
 		// Protects against clients that send endless headers (slow loris).
-		// The real limit comes from the config file (client_max_body_size).
-		// This is a hard safety ceiling — Sara's config value should be lower.
-		HttpRequestParser();
-		void setMaxBodySize(size_t size);
-		const HttpRequest& currentRequest() const;
-		static const size_t MAX_BUFFER_SIZE = 8 * 1024 * 1024; // 8 MB
+		// HttpRequestParser();
+		explicit HttpRequestParser(
+			const std::function<
+				size_t(const std::string&)
+			>& maxBodySizeFor
+		);
+		// void setMaxBodySize(size_t size);
+		// const HttpRequest& currentRequest() const;
+		// static const size_t MAX_BUFFER_SIZE = 8 * 1024 * 1024; // 8 MB
+		static const size_t MAX_HEADER_SIZE = 64 * 1024;
 		static std::string toLower(std::string s); // Noor: moved it to public! and made static
 		Result feed(const std::string& chunk, HttpRequest& req);
 };

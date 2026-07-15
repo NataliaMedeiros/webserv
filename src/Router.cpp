@@ -102,3 +102,57 @@ RouteDecision Router::route(const HttpRequest& req) const
 
     return best;
 }
+
+size_t Router::maxBodySizeFor(
+    const std::string& path
+) const
+{
+    if (!servConfig)
+        return 1024 * 1024;
+
+    size_t selectedLimit = servConfig->maxBodySize;
+    size_t bestLen = 0;
+
+    for (
+        std::vector<LocationConfig>::const_iterator it =
+            servConfig->locations.begin();
+        it != servConfig->locations.end();
+        ++it
+    )
+    {
+        const LocationConfig& loc = *it;
+        const std::string& locPath = loc.path;
+
+        const bool prefixMatch =
+            path.size() >= locPath.size()
+            && path.compare(
+                0,
+                locPath.size(),
+                locPath
+            ) == 0;
+
+        const bool boundaryOk =
+            locPath == "/"
+            || path.size() == locPath.size()
+            || (
+                path.size() > locPath.size()
+                && path[locPath.size()] == '/'
+            );
+
+        if (
+            prefixMatch
+            && boundaryOk
+            && locPath.size() > bestLen
+        )
+        {
+            bestLen = locPath.size();
+
+            if (loc.hasMaxBodySize)
+                selectedLimit = loc.maxBodySize;
+            else
+                selectedLimit = servConfig->maxBodySize;
+        }
+    }
+
+    return selectedLimit;
+}

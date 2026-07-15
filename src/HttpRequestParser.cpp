@@ -7,20 +7,20 @@
 #include <vector>
 #include <cstdlib>
 
-HttpRequestParser::HttpRequestParser()
-    : maxBodySize(MAX_BUFFER_SIZE)
-{
-}
+const size_t HttpRequestParser::MAX_HEADER_SIZE;
 
-void HttpRequestParser::setMaxBodySize(size_t size)
-{
-    maxBodySize = size;
-}
+HttpRequestParser::HttpRequestParser(const std::function < size_t(const std::string&) >& maxBodySizeFor)
+    : _maxBodySizeFor(maxBodySizeFor), maxBodySize(0) {}
 
-const HttpRequest& HttpRequestParser::currentRequest() const
-{
-    return _currentRequest;
-}
+// void HttpRequestParser::setMaxBodySize(size_t size)
+// {
+//     maxBodySize = size;
+// }
+
+// const HttpRequest& HttpRequestParser::currentRequest() const
+// {
+//     return _currentRequest;
+// }
 
 static bool shouldKeepAlive(const HttpRequest& req);
 
@@ -34,19 +34,42 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 	// Guard 1: buffer size limit.
 	// A client sending endless headers without \r\n\r\n would grow _buf
 	// forever. Reject early once we exceed the hard ceiling.
-	if (_buf.size() > MAX_BUFFER_SIZE)
+	// if (_buf.size() > MAX_BUFFER_SIZE)
+	// {
+	// 	// This check runs before findHeaderEnd(), so we are always still
+	// 	// reading the request line or headers here, never the body.
+	// 	// That means the URI or headers are too long, not the payload.
+	// 	_buf.clear();
+	// 	std::cerr << "URI_TOO_LONG 1\n";
+	// 	return UriTooLong;
+	// }
+
+	// // We need the full header section before we can do anything.
+	// if (findHeaderEnd(_buf) == std::string::npos)
+	// 	return NeedMore;
+	const size_t headerEnd = findHeaderEnd(_buf);
+
+	if (headerEnd == std::string::npos)
 	{
-		// This check runs before findHeaderEnd(), so we are always still
-		// reading the request line or headers here, never the body.
-		// That means the URI or headers are too long, not the payload.
+		// Ainda estamos recebendo request line e headers.
+		if (_buf.size() > MAX_HEADER_SIZE)
+		{
+			_buf.clear();
+			std::cerr << "URI_TOO_LONG 1\n";
+			return UriTooLong;
+		}
+
+		return NeedMore;
+	}
+
+	// headerEnd points to the start of "\r\n\r\n".
+// Subtract 4 so the delimiter is also included in the header size limit.
+	if (headerEnd > MAX_HEADER_SIZE - 4)
+	{
 		_buf.clear();
 		std::cerr << "URI_TOO_LONG 1\n";
 		return UriTooLong;
 	}
-
-	// We need the full header section before we can do anything.
-	if (findHeaderEnd(_buf) == std::string::npos)
-		return NeedMore;
 
 	// Work on a fresh request object so that partial data from a
 	// previous NeedMore call never leaks into the final result.
@@ -69,6 +92,14 @@ HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, Http
 	try
 	{
 		parseFirstLine(tmp, lines[0]);
+		if (!_maxBodySizeFor)
+		{
+			throw std::runtime_error(
+				"missing max body size resolver"
+			);
+		}
+
+		maxBodySize = _maxBodySizeFor(tmp.path);
 		parseHeaders(tmp, lines);
 		// REDUNDANT!! 14 juli, Noor deleted this part:
 		// std::map<std::string, std::string>::iterator cl =
@@ -268,6 +299,8 @@ bool HttpRequestParser::parseBody(HttpRequest& req,
     if (clIt != req.headers.end())
     {
         const std::string& clStr = clIt->second;
+		if (clStr.empty())
+			throw std::runtime_error("empty Content-Length");
         for (size_t i = 0; i < clStr.size(); i++)
             if (!std::isdigit(static_cast<unsigned char>(clStr[i])))
                 throw std::runtime_error("non-digit in Content-Length");
@@ -460,10 +493,19 @@ bool HttpRequestParser::parseChunkedBody(HttpRequest& req,
             throw std::runtime_error("missing CRLF after chunk data");
 
         //decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
-		if (decoded.size() + static_cast<size_t>(chunkSize) > maxBodySize)
-    throw std::runtime_error("PAYLOAD_TOO_LARGE");
+		// if (decoded.size() + static_cast<size_t>(chunkSize) > maxBodySize)
+    	// 	throw std::runtime_error("PAYLOAD_TOO_LARGE");
 
-decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
+		const size_t currentChunkSize = static_cast<size_t>(chunkSize);
+
+		if (decoded.size() > maxBodySize || currentChunkSize > maxBodySize - decoded.size())
+		{
+			throw std::runtime_error("PAYLOAD_TOO_LARGE");
+		}
+
+		decoded.append(bodyPart, pos, currentChunkSize);
+
+// decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
         pos = dataEnd + 2;
     }
 

@@ -6,7 +6,7 @@
 #include "ServerConfig.hpp"
 #include <string>
 #include <vector> // NEW
-#include <poll.h> 
+#include <poll.h>
 #include <sys/types.h> // NEW: for pid_t
 
 // NOTE: One ClientConnection represents one TCP client socket.
@@ -48,11 +48,11 @@ private:
   // NOTE: Outgoing bytes waiting to be written.
   std::string _out;
 
-  // NOTE: Incremental parser that can accept partial reads.
-  HttpRequestParser _parser; // before it wat RequestParser 
-
   // Router decides which handler to use (static/upload/cgi).
   Router _router;
+
+  // NOTE: Incremental parser that can accept partial reads.
+  HttpRequestParser _parser; // before it wat RequestParser
 
   // NEW: CGI process tracking (7 july, Noor)
   // _cgiPid --> pid of the child process running the script

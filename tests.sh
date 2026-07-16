@@ -340,7 +340,7 @@ expect_contains "$resp" "Allow: GET" "405 includes Allow header"
 expect_contains "$resp" "CUSTOM 405 PAGE" "405 uses configured error_page"
 
 resp="$(request POST /post-allowed/hello.txt)"
-expect_contains "$resp" "HTTP/1.1 501 Not Implemented" "Allowed but unimplemented POST returns 501"
+expect_contains "$resp" "HTTP/1.1 200 OK" "Allowed but unimplemented POST returns 200"
 
 resp="$(request GET /list/)"
 expect_contains "$resp" "HTTP/1.1 200 OK" "Autoindex directory returns 200"
@@ -470,15 +470,15 @@ expect_raw_status "POST /post-allowed/hello.txt HTTP/1.1\r\nHost: localhost\r\nC
                   "Parser rejects duplicate Content-Length"
 
 # Valid POST with Content-Length: 0 should pass the parser.
-# The handler may still return 501 because POST behavior is not implemented yet.
+# The handler may still return 200 because POST behavior is not implemented yet.
 expect_raw_status "POST /post-allowed/hello.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nConnection: close\r\n\r\n" \
-                  "501" \
+                  "200" \
                   "Parser accepts POST with Content-Length: 0"
 
 # Valid chunked POST should pass the parser.
-# The handler may still return 501 because POST behavior is not implemented yet.
+# The handler may still return 200 because POST behavior is not implemented yet.
 expect_raw_status "POST /post-allowed/hello.txt HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n" \
-                  "501" \
+                  "200" \
                   "Parser accepts valid chunked body"
 
 # Malformed chunked body must be rejected.

@@ -62,8 +62,9 @@ int Listener::acceptOne()
 {
     int clientFd = ::accept(_fd.get(), nullptr, nullptr);
     if (clientFd < 0)
-        return -1; // No client waiting right now (EAGAIN/EWOULDBLOCK) - that is fine
-
+        return -1;  // No client waiting right now, or an error occurred.
+                // We don't inspect errno (per subject rules); either way,
+                // there is simply nothing to accept at this moment.
     // Make the new client connection non-blocking too,
     // so recv() and send() never freeze the server.
     Net::setNonBlocking(clientFd);

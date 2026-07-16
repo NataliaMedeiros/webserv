@@ -604,7 +604,6 @@ HttpResponse Handler::handleCgi(const RouteDecision& rd,
         };
 
         execve(rd.cgiPass.c_str(), argv, &envp[0]);
-        perror("execve failed");
         _exit(1);
     }
 

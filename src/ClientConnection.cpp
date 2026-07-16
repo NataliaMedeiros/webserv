@@ -1,4 +1,5 @@
 #include "ClientConnection.hpp"
+#include "Net.hpp"
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <cerrno>
@@ -168,16 +169,43 @@ void ClientConnection::queueResponse(const HttpResponse& resp, bool keepAlive)
     else
         _state = State::Writing;
 }
+// OLD! Changed for the one below on jul 16 (Noor)
+// void ClientConnection::handleRequest(const HttpRequest& req)
+// {
+//     RouteDecision decision = _router.route(req);
+
+//     Handler handler;
+//     HttpResponse resp = handler.handle(decision, req);
+
+//     queueResponse(resp, req.keepAlive);
+// }
 void ClientConnection::handleRequest(const HttpRequest& req)
 {
     RouteDecision decision = _router.route(req);
+    std::string fullPath = Handler::buildPath(decision, req);
+
+    // If this route needs CGI, use our own non-blocking startCgi()
+    // instead of Handler's blocking handleCgi(), so the whole server
+    // does not stall while a CGI script runs (subject requirement).
+    bool isCgiRequest = !decision.cgiPass.empty()
+        && (decision.cgiExtension.empty()
+            || Handler::hasExtension(fullPath, decision.cgiExtension));
+
+    if (isCgiRequest)
+    {
+        std::vector<std::string> env = Handler::buildCgiEnv(decision, req, fullPath);
+
+        // cgiPass is the interpreter (e.g. /usr/bin/python3) or the
+        // script itself if it is directly executable (e.g. ./cgi_tester)
+        startCgi(decision.cgiPass, fullPath, env, req.body);
+        return;
+    }
 
     Handler handler;
     HttpResponse resp = handler.handle(decision, req);
 
     queueResponse(resp, req.keepAlive);
 }
-
 
 //OLD!! changed for the one above on 19 May
 // // handleRequest() is the "controller" - it decides what to do with a completed request.
@@ -216,30 +244,50 @@ void ClientConnection::startCgi(const std::string& executable,
                                 const std::vector<std::string>& env,
                                 const std::string& body)
 {
-    (void)body; // temporarily unused, Sara will wire in the request body later
-    // Create a pipe: read end, pipefd[1] = write end
-    int pipefd[2];
-    if (::pipe(pipefd) < 0)
+    // NEW (16 july, by Noor): two pipes now, one for each direction.
+    // outPipe: CGI stdout -> we read the script's response here.
+    // inPipe:  we write the request body -> CGI stdin.
+    int outPipe[2];
+    int inPipe[2];
+
+    if (::pipe(outPipe) < 0)
     {
         queueResponse(HttpResponse::text(500, "Internal Server Error"), false);
         return;
     }
+
+    if (::pipe(inPipe) < 0)
+    {
+        ::close(outPipe[0]);
+        ::close(outPipe[1]);
+        queueResponse(HttpResponse::text(500, "Internal Server Error"), false);
+        return;
+    }
+
     _cgiPid = ::fork();
 
     if (_cgiPid < 0)
     {
         // fork() failed
-        ::close(pipefd[0]);
-        ::close(pipefd[1]);
+        ::close(outPipe[0]);
+        ::close(outPipe[1]);
+        ::close(inPipe[0]);
+        ::close(inPipe[1]);
         queueResponse(HttpResponse::text(500, "Internal Server Error"), false);
         return;
     }
+
     if (_cgiPid == 0)
     {
-        // CHILD Process: redirect stdout to the write end of the pipe
-        ::close(pipefd[0]); // child does not need the read end
-        ::dup2(pipefd[1], STDOUT_FILENO);
-        ::close(pipefd[1]);
+        // CHILD Process: stdin comes from inPipe, stdout goes to outPipe
+        ::close(outPipe[0]); // child does not read its own output
+        ::close(inPipe[1]);  // child does not write to its own input
+
+        ::dup2(inPipe[0], STDIN_FILENO);
+        ::dup2(outPipe[1], STDOUT_FILENO);
+
+        ::close(inPipe[0]);
+        ::close(outPipe[1]);
 
         // Build the argv array for execve()
         std::vector<char*> argv;
@@ -247,7 +295,7 @@ void ClientConnection::startCgi(const std::string& executable,
         argv.push_back(const_cast<char*>(scriptPath.c_str()));
         argv.push_back(nullptr);
 
-        // Build  the envp array for execve()
+        // Build the envp array for execve()
         std::vector<char*> envp;
         for (const std::string& e : env)
             envp.push_back(const_cast<char*>(e.c_str()));
@@ -258,10 +306,78 @@ void ClientConnection::startCgi(const std::string& executable,
         // If execve() returns, something went wrong
         ::exit(1);
     }
-    // PARENT PROCESS: keep the read end, close the write end
-    ::close(pipefd[1]);
-    _cgiFd = pipefd[0];
+
+    // PARENT PROCESS
+    ::close(outPipe[1]); // we don't write to the CGI's stdout
+    ::close(inPipe[0]);  // we don't read from the CGI's stdin
+
+    _cgiFd = outPipe[0];
+    _cgiStdinFd = inPipe[1];
+    _cgiBody = body;
+    _cgiBodyWritten = 0;
+
+    // NEW (16 july, by Noor): pipes are blocking by default. Without this,
+    // write()/read() here would freeze the whole event loop, even though
+    // poll() told us the fd was ready, because a single write() call can
+    // still block until the pipe has room for ALL the bytes we ask for.
+    Net::setNonBlocking(_cgiFd);
+    if (_cgiStdinFd != -1)
+        Net::setNonBlocking(_cgiStdinFd);
+
+    // If there is no body at all, close the write end right away
+    // so the CGI sees EOF immediately instead of waiting forever.
+    if (_cgiBody.empty())
+    {
+        ::close(_cgiStdinFd);
+        _cgiStdinFd = -1;
+    }
+
     _state = State::CGI;
+}
+
+// onCgiWritable() is called by EventLoop when the CGI stdin pipe is
+// ready to accept more data. We write in small chunks instead of all
+// at once, so a full pipe buffer never blocks the whole server.
+void ClientConnection::onCgiWritable()
+{
+    if (_cgiStdinFd == -1)
+        return; // nothing left to write
+
+// FIXED (16 july, by Noor): no need to artificially cap this at 4096.
+// The pipe is non-blocking now, so write() will simply write as much
+// as fits in the pipe buffer and return immediately either way.
+// Capping too small just means far more poll() round trips than needed,
+// which was adding enough latency to trip the official tester's timeout.
+    size_t remaining = _cgiBody.size() - _cgiBodyWritten;
+    ssize_t written = ::write(_cgiStdinFd,
+                            _cgiBody.data() + _cgiBodyWritten,
+                            remaining);
+    if (written > 0)
+    {
+        _cgiBodyWritten += static_cast<size_t>(written);
+
+    if (_cgiBodyWritten >= _cgiBody.size())
+    {
+        // DEBUG (16 july, by Noor): confirm we actually sent everything
+        std::cerr << "CGI stdin write complete: " << _cgiBodyWritten
+                << " / " << _cgiBody.size() << " bytes\n";
+
+        // Entire body sent. Close the pipe so the CGI sees EOF,
+        // exactly like it would after reading Content-Length bytes.
+        ::close(_cgiStdinFd);
+        _cgiStdinFd = -1;
+        _cgiBody.clear();
+    }
+        return;
+    }
+
+    if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+        return; // pipe buffer is full right now, poll() will call us again
+
+    // Any other error: stop trying, close the pipe so the CGI at least
+    // gets EOF instead of hanging forever waiting for more input.
+    ::close(_cgiStdinFd);
+    _cgiStdinFd = -1;
 }
 
 // onCgiReadable() is called by EventLoop when the CGI pipe has data
@@ -275,6 +391,14 @@ void ClientConnection::onCgiReadable()
         _cgiOutput += std::string(buf, static_cast<size_t>(bytesRead));
         return; // More data might come, wait for next poll() call
     }
+
+    // NEW (16 july, by Noor): _cgiFd is non-blocking now, so read()
+    // returns -1/EAGAIN when the script simply has no output ready yet.
+    // That is NOT the same as the pipe being closed, without this check
+    // we were finalising the response too early on a large/slow script.
+    if (bytesRead < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+        return; // No data right now, poll() will call us again later
+
     // bytesRead == 0 means the pipe closed, script is done
     ::close(_cgiFd);
     _cgiFd = -1;
@@ -286,12 +410,29 @@ void ClientConnection::onCgiReadable()
         _cgiPid = -1;
     }
 
-    // Build the response from the CGI output
+// FIXED (16 july, by Noor): split off the CGI header block
+    // (Status, Content-Type, etc.) from the actual body, exactly
+    // like Handler::handleCgi() already does for the blocking path.
+    // Without this, the CGI's own headers were leaking into the
+    // HTTP response body.
+    size_t sep = _cgiOutput.find("\r\n\r\n");
+    size_t offset = 4;
+
+    if (sep == std::string::npos)
+    {
+        sep = _cgiOutput.find("\n\n");
+        offset = 2;
+    }
+
     HttpResponse resp;
     resp.status = 200;
     resp.reason = "OK";
-    resp.body = _cgiOutput;
-    resp.headers["Content-Type"] = "text/html";
+
+    if (sep != std::string::npos)
+        resp.setBody(_cgiOutput.substr(sep + offset), "text/html; charset=utf-8");
+    else
+        resp.setBody(_cgiOutput, "text/html; charset=utf-8");
+
     _cgiOutput.clear();
 
     queueResponse(resp, false);

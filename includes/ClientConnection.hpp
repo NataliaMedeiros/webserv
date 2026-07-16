@@ -41,6 +41,11 @@ public:
   int cgiPipeFd() const { return _cgiFd; }
   void onCgiReadable(); // called by EventLoop when pipe has data
 
+  // NEW 16 July: helpers for the CGI stdin write pipe
+  bool hasCgiStdinPipe() const { return _cgiStdinFd != -1; }
+  int cgiStdinFd() const { return _cgiStdinFd; }
+  void onCgiWritable();
+
 private:
   Fd _fd;
   State _state = State::Reading;
@@ -59,8 +64,13 @@ private:
   // _cgiFd --> read end of the pipe, where CGI output comes from
   // _cgiOutput --> accumulated output from the CGI script
   pid_t _cgiPid = -1;
-  int _cgiFd = -1;
+  int _cgiFd = -1;              // read end: CGI output comes from here
   std::string _cgiOutput;
+
+  // NEW (16 july, by Noor): non-blocking write of the request body to CGI stdin
+  int _cgiStdinFd = -1;         // write end: request body goes to the CGI's stdin
+  std::string _cgiBody;         // the body still waiting to be written
+  size_t _cgiBodyWritten = 0;   // how much of _cgiBody has been written so far
 
   // Build + queue a response for a complete request.
   void handleRequest(const HttpRequest& req);

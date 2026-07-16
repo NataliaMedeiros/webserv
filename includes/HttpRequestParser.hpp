@@ -24,10 +24,6 @@ class HttpRequestParser
 			UriTooLong
 		};
 
-
-
-
-
 		// Protects against clients that send endless headers (slow loris).
 		// HttpRequestParser();
 		explicit HttpRequestParser(
@@ -83,8 +79,6 @@ class HttpRequestParser
 		Result finishRequest(HttpRequest& req);//Finaliza e entrega a request ao ClientConnection.
 		void resetRequestState();//Limpa o estado interno para a próxima request.
 		// Content-Length of the current request.
-
-
 };
 
 #endif

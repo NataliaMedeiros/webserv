@@ -73,6 +73,20 @@ void EventLoop::rebuildPollFds()
             _pollFds.push_back(cgiEntry);
         }
     }
+    // NEW (16 july, by Noor): also watch the CGI stdin pipe for writability,
+    // so we can write the request body to the script without blocking.
+    for (auto& pair : _store.all())
+    {
+        ClientConnection* conn = pair.second.get();
+        if (conn->hasCgiStdinPipe())
+        {
+            pollfd cgiStdinEntry;
+            cgiStdinEntry.fd      = conn->cgiStdinFd();
+            cgiStdinEntry.events  = POLLOUT;
+            cgiStdinEntry.revents = 0;
+            _pollFds.push_back(cgiStdinEntry);
+        }
+    }
 }
 
 // dispatchEvents() checks what poll() found and calls the right handler.
@@ -140,6 +154,24 @@ void EventLoop::dispatchEvents()
         {
             if (cgiConn)
                 cgiConn->onCgiReadable();
+            continue;
+        }
+        // NEW (16 july, by Noor): check if this fd is a CGI stdin (write) pipe.
+        bool isCgiStdinPipe = false;
+        ClientConnection* cgiStdinConn = nullptr;
+        for (auto& pair : _store.all())
+        {
+            if (pair.second->hasCgiStdinPipe() && pair.second->cgiStdinFd() == p.fd)
+            {
+                isCgiStdinPipe = true;
+                cgiStdinConn = pair.second.get();
+                break;
+            }
+        }
+        if (isCgiStdinPipe)
+        {
+            if (cgiStdinConn)
+                cgiStdinConn->onCgiWritable();
             continue;
         }
         // Client fd: something happened on an existing connection

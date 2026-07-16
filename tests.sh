@@ -19,6 +19,11 @@ MULTI_LOG=".test_multi_port.log"
 MULTI_OUT1=".test_multi_port_1.out"
 MULTI_OUT2=".test_multi_port_2.out"
 MULTI_PID=""
+COMPAT_PORT="${COMPAT_PORT:-$((PORT + 3))}"
+COMPAT_CONF=".test_42_compat.conf"
+COMPAT_ROOT=".test_42_compat_www"
+COMPAT_LOG=".test_42_compat.log"
+COMPAT_PID=""
 
 # Delete only files/folders created by this script.
 clean_test_artifacts() {
@@ -31,10 +36,13 @@ clean_test_artifacts() {
         "$MULTI_ROOT2" \
         "$MULTI_LOG" \
         "$MULTI_OUT1" \
-        "$MULTI_OUT2"
+        "$MULTI_OUT2" \
+        "$COMPAT_CONF" \
+        "$COMPAT_ROOT" \
+        "$COMPAT_LOG"
 
-    # Only remove this if a broken path-traversal test created it.
-    if [ -f "evil.txt" ] && grep -Fq "UPLOAD CONTENT" "evil.txt" 2>/dev/null; then
+    if [ -f "evil.txt" ] &&
+       grep -Fq "UPLOAD CONTENT" "evil.txt" 2>/dev/null; then
         rm -f "evil.txt"
     fi
 }
@@ -826,12 +834,6 @@ fi
 # ============================================================
 
 printf "\n=== 42 tester compatibility tests ===\n"
-
-COMPAT_PORT="${COMPAT_PORT:-$((PORT + 3))}"
-COMPAT_CONF=".test_42_compat.conf"
-COMPAT_ROOT=".test_42_compat_www"
-COMPAT_LOG=".test_42_compat.log"
-COMPAT_PID=""
 
 compat_cleanup() {
     if [ -n "${COMPAT_PID:-}" ] && kill -0 "$COMPAT_PID" 2>/dev/null; then

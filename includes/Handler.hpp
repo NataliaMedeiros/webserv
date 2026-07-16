@@ -18,7 +18,6 @@
 //   // Run CGI (fork/exec/pipes) - TODO later.
 //   HttpResponse handleCgi(const HttpRequest& req, const RouteDecision& d);
 // }
-
 class Handler
 {
   public:
@@ -29,7 +28,7 @@ class Handler
         static std::vector<std::string> buildCgiEnv(const RouteDecision& rd, 
                                                     const HttpRequest& req,
                                                     const std::string& fullPath);
-
+                                                    
         // NEW 16 July: needed by ClientConnection to compute the CGI script path
         // before deciding whether to use non-blocking startCgi()
         static std::string buildPath(const RouteDecision& rd, const HttpRequest& req);
@@ -41,8 +40,6 @@ class Handler
         HttpResponse handleDelete(const RouteDecision& rd, const std::string& fullPath);
         HttpResponse handleUpload(const RouteDecision& rd, const HttpRequest& req);
         HttpResponse handleAutoindex(const std::string& dirPath, const std::string& uriPath);
-        HttpResponse handleCgi(const RouteDecision& rd, const HttpRequest& req,
-          const std::string& fullPath);
         // std::string  buildPath(const RouteDecision& rd, const HttpRequest& req);
         bool         isMethodAllowed(const RouteDecision& rd, const std::string& method);
         HttpResponse makeError(const RouteDecision& rd, int code, const std::string& message);

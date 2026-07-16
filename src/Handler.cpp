@@ -488,8 +488,8 @@ std::string Handler::buildPath(const RouteDecision& rd, const HttpRequest& req)
 }
 
 /* 
-* Build CGI environment variables. Shared between Handler's own 
-* blocking handleCgi() and ClientConnection's non-blocking startCgi()
+* Build CGI environment variables. Used by ClientConnection's
+* non-blocking startCgi().
 */
 std::vector<std::string> Handler::buildCgiEnv(const RouteDecision& rd,
                                             const HttpRequest& req,
@@ -529,128 +529,6 @@ std::vector<std::string> Handler::buildCgiEnv(const RouteDecision& rd,
     }
 
     return envStrings;
-}
-
-/*
- * Handle CGI execution.
- */
-HttpResponse Handler::handleCgi(const RouteDecision& rd,
-                                const HttpRequest& req,
-                                const std::string& fullPath)
-{
-    if (!FileSystem::exists(fullPath))
-        return makeError(rd, 404, "Not Found");
-
-    if (!FileSystem::isFileNormal(fullPath))
-        return makeError(rd, 403, "Forbidden");
-
-    int inPipe[2];
-    int outPipe[2];
-
-    if (pipe(inPipe) == -1)
-        return makeError(rd, 500, "Could not create pipes");
-
-    if (pipe(outPipe) == -1)
-    {
-        close(inPipe[0]);
-        close(inPipe[1]);
-        return makeError(rd, 500, "Could not create pipes");
-    }
-
-    pid_t pid = fork();
-    if (pid == -1)
-    {
-        close(inPipe[0]);
-        close(inPipe[1]);
-        close(outPipe[0]);
-        close(outPipe[1]);
-        return makeError(rd, 500, "Fork failed");
-    }
-
-    if (pid == 0)
-    {
-        dup2(inPipe[0], STDIN_FILENO);
-        dup2(outPipe[1], STDOUT_FILENO);
-
-        close(inPipe[0]);
-        close(inPipe[1]);
-        close(outPipe[0]);
-        close(outPipe[1]);
-
-        // std::string contentLength = numberToString(req.body.size());
-
-        // std::vector<std::string> envStrings;
-        // envStrings.push_back("REQUEST_METHOD=" + req.method);
-        // envStrings.push_back("CONTENT_LENGTH=" + contentLength);
-        // envStrings.push_back("SCRIPT_FILENAME=" + fullPath);
-        // envStrings.push_back("GATEWAY_INTERFACE=CGI/1.1");
-        // envStrings.push_back("SERVER_PROTOCOL=HTTP/1.1");
-        // envStrings.push_back("QUERY_STRING=");
-        // envStrings.push_back("PATH_INFO=" + req.path);
-        std::vector<std::string> envStrings = buildCgiEnv(rd, req, fullPath);
-
-        std::vector<char*> envp;
-        for (std::vector<std::string>::iterator it = envStrings.begin();
-             it != envStrings.end(); ++it)
-        {
-            envp.push_back(const_cast<char*>(it->c_str()));
-        }
-        envp.push_back(NULL);
-
-        char* argv[] = {
-            const_cast<char*>(rd.cgiPass.c_str()),
-            const_cast<char*>(fullPath.c_str()),
-            NULL
-        };
-
-        execve(rd.cgiPass.c_str(), argv, &envp[0]);
-        _exit(1);
-    }
-
-    close(inPipe[0]);
-    close(outPipe[1]);
-
-    if (!req.body.empty())
-        write(inPipe[1], req.body.c_str(), req.body.size());
-
-    close(inPipe[1]);
-
-    std::string output;
-    char buffer[4096];
-    ssize_t n;
-
-    while ((n = read(outPipe[0], buffer, sizeof(buffer))) > 0)
-        output.append(buffer, n);
-
-    close(outPipe[0]);
-
-    int status = 0;
-    waitpid(pid, &status, 0);
-
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-    {
-        std::cerr << "CGI exit status: " << status << std::endl;
-        return makeError(rd, 502, "Bad Gateway");
-    }
-    HttpResponse res;
-    res.status = 200;
-    res.reason = HttpResponse::reasonPhrase(200);
-
-    size_t sep = output.find("\r\n\r\n");
-    size_t offset = 4;
-
-    if (sep == std::string::npos)
-    {
-        sep = output.find("\n\n");
-        offset = 2;
-    }
-
-    if (sep != std::string::npos)
-        res.setBody(output.substr(sep + offset), "text/html; charset=utf-8");
-    else
-        res.setBody(output, "text/html; charset=utf-8");
-
-    return res;
 }
 
 /*
@@ -758,17 +636,6 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
 
     if (!isPathInsideRoot(rd.root, fullPath))
         return makeError(rd, 403, "Forbidden");
-    std::cout << "CGI DEBUG\n";
-    std::cout << "cgiPass: [" << rd.cgiPass << "]\n";
-    std::cout << "cgiExtension: [" << rd.cgiExtension << "]\n";
-    std::cout << "path: [" << fullPath << "]\n";
-    if (!rd.cgiPass.empty()
-    && (rd.cgiExtension.empty() || hasExtension(fullPath, rd.cgiExtension)))
-    {
-        std::cout << "ENTERING CGI\n";
-        return handleCgi(rd, req, fullPath);
-    }
-
     if (!isMethodAllowed(rd, req.method))
     {
         HttpResponse res = makeError(rd, 405, "Method Not Allowed");

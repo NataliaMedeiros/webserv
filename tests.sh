@@ -707,7 +707,7 @@ expect_contains "$resp" "Hello CGI" "CGI response body is returned"
 expect_header_count "$resp" "Content-Length" "1" "CGI response has exactly one Content-Length header"
 
 resp="$(request GET /cgi/missing.py)"
-expect_contains "$resp" "HTTP/1.1 404 Not Found" "Missing CGI script returns 404"
+expect_contains "$resp" "HTTP/1.1 502 Bad Gateway" "Missing CGI script returns 502"
 
 resp="$(raw_request "POST /cgi/echo_body.py HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n")"
 

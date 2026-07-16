@@ -403,13 +403,27 @@ void ClientConnection::onCgiReadable()
     ::close(_cgiFd);
     _cgiFd = -1;
 
-    // Wait for the child process to finish (non-blocking)
-    if (_cgiPid != -1)
-    {
-        ::waitpid(_cgiPid, nullptr, WNOHANG);
-        _cgiPid = -1;
-    }
+// FIXED (16 july, by Noor): check the child's exit status, exactly
+// like Handler's old blocking handleCgi() did, so a crashed/failed
+// script (e.g. python3 failing to open a missing file) returns 502
+// instead of silently 200.
+int status = 0;
+bool cgiFailed = false;
 
+if (_cgiPid != -1)
+{
+    ::waitpid(_cgiPid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+        cgiFailed = true;
+    _cgiPid = -1;
+}
+
+if (cgiFailed)
+{
+    queueResponse(HttpResponse::text(502, "Bad Gateway"), false);
+    _cgiOutput.clear();
+    return;
+}
 // FIXED (16 july, by Noor): split off the CGI header block
     // (Status, Content-Type, etc.) from the actual body, exactly
     // like Handler::handleCgi() already does for the blocking path.

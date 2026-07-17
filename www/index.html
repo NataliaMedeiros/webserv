@@ -51,14 +51,24 @@
     }
 
     .badge {
-      display: inline-block;
-      background: #e8f0fe;
-      color: #1f3864;
-      border-radius: 20px;
-      padding: 6px 16px;
-      margin: 4px;
-      font-size: 0.9rem;
-    }
+    display: inline-block;
+    background: #e8f0fe;
+    color: #1f3864;
+    border-radius: 20px;
+    padding: 6px 16px;
+    margin: 4px;
+    font-size: 0.9rem;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background 0.2s ease,
+      transform 0.2s ease;
+  }
+
+.badge:hover {
+  background: #cdddf8;
+  transform: translateY(-2px);
+}
 
     .status {
       color: #27ae60;
@@ -203,6 +213,16 @@
 ```
 <div class="names">
   Made by socketSquad Noor, Sara &amp; Natalia
+</div>
+
+<div class="badges">
+  <a class="badge" href="https://www.codam.nl/">
+    Codam
+  </a>
+ <!-- <a class="badge" href="/codam.html">Codam</a>-->
+  <a class="badge" href="/cpp.html">C++</a>
+  <a class="badge" href="/http.html">HTTP/1.1</a>
+  <a class="badge" href="/non-blocking.html">Non-blocking I/O</a>
 </div>
 
 <div class="status">

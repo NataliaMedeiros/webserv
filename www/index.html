@@ -1,63 +1,447 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>Webserv</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        background: #f0f4ff;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        margin: 0;
-      }
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Webserv</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f4ff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 720px;
+      background: white;
+      border-radius: 16px;
+      padding: 40px 48px;
+      text-align: center;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin: 0 0 8px;
+      color: #1f3864;
+    }
+
+    .names {
+      font-size: 1.2rem;
+      color: #2e75b6;
+      font-weight: bold;
+      margin-bottom: 24px;
+    }
+
+    .badges {
+      margin-bottom: 24px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #e8f0fe;
+      color: #1f3864;
+      border-radius: 20px;
+      padding: 6px 16px;
+      margin: 4px;
+      font-size: 0.9rem;
+    }
+
+    .status {
+      color: #27ae60;
+      font-size: 1rem;
+      margin-bottom: 32px;
+    }
+
+    .file-manager {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      text-align: left;
+    }
+
+    .operation {
+      background: #f8faff;
+      border: 1px solid #dce6f8;
+      border-radius: 12px;
+      padding: 22px;
+    }
+
+    .operation h2 {
+      color: #1f3864;
+      font-size: 1.2rem;
+      margin: 0 0 8px;
+    }
+
+    .operation p {
+      color: #667085;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin: 0 0 16px;
+    }
+
+    input[type="file"],
+    input[type="text"] {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid #b8c8e0;
+      border-radius: 8px;
+      padding: 10px;
+      background: white;
+      color: #1f3864;
+    }
+
+    input[type="file"] {
+      padding: 7px;
+    }
+
+    input:focus {
+      outline: 2px solid rgba(46, 117, 182, 0.2);
+      border-color: #2e75b6;
+    }
+
+    button {
+      width: 100%;
+      border: none;
+      border-radius: 8px;
+      padding: 11px 16px;
+      margin-top: 12px;
+      color: white;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition:
+        transform 0.15s ease,
+        opacity 0.15s ease;
+    }
+
+    button:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+      transform: none;
+    }
+
+    .upload-button {
+      background: #2e75b6;
+    }
+
+    .delete-button {
+      background: #d64545;
+    }
+
+    .result {
+      display: none;
+      margin-top: 24px;
+      border-radius: 10px;
+      padding: 14px 18px;
+      text-align: left;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 0.95rem;
+    }
+
+    .result.success {
+      display: block;
+      background: #eaf8ef;
+      border: 1px solid #a9dfba;
+      color: #1f7a3f;
+    }
+
+    .result.error {
+      display: block;
+      background: #fff0f0;
+      border: 1px solid #efb0b0;
+      color: #a62828;
+    }
+
+    .result.info {
+      display: block;
+      background: #eef5ff;
+      border: 1px solid #b9d3f7;
+      color: #1f3864;
+    }
+
+    @media (max-width: 650px) {
       .card {
-        background: white;
-        border-radius: 16px;
-        padding: 48px 64px;
-        text-align: center;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+        padding: 32px 24px;
       }
+
       h1 {
-        font-size: 2.2rem;
-        margin-bottom: 8px;
-        color: #1F3864;
+        font-size: 1.8rem;
       }
-      .names {
-        font-size: 1.2rem;
-        color: #2E75B6;
-        font-weight: bold;
-        margin-bottom: 24px;
+
+      .file-manager {
+        grid-template-columns: 1fr;
       }
-      .badge {
-        display: inline-block;
-        background: #e8f0fe;
-        color: #1F3864;
-        border-radius: 20px;
-        padding: 6px 16px;
-        margin: 4px;
-        font-size: 0.9rem;
+    }
+  </style>
+
+</head>
+
+<body>
+  <main class="card">
+    <h1>Hello from Webserv! 🚀</h1>
+
+```
+<div class="names">
+  Made by socketSquad Noor, Sara &amp; Natalia
+</div>
+
+<div class="status">
+  ✅ Server is running on port 8080
+</div>
+
+<div class="file-manager">
+  <section class="operation">
+    <h2>Upload a file</h2>
+
+    <p>
+      Select a file and send it to the server.
+    </p>
+
+    <input
+      type="file"
+      id="fileInput"
+    >
+
+    <button
+      type="button"
+      id="uploadButton"
+      class="upload-button"
+    >
+      Upload
+    </button>
+  </section>
+
+  <section class="operation">
+    <h2>Delete a file</h2>
+
+    <p>
+      Enter the exact name of a file from the uploads directory.
+    </p>
+
+    <input
+      type="text"
+      id="deleteFilename"
+      placeholder="example.png"
+      autocomplete="off"
+    >
+
+    <button
+      type="button"
+      id="deleteButton"
+      class="delete-button"
+    >
+      Delete
+    </button>
+  </section>
+</div>
+
+<div
+  id="result"
+  class="result"
+  role="status"
+  aria-live="polite"
+></div>
+```
+
+  </main>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const deleteFilename = document.getElementById("deleteFilename");
+    const uploadButton = document.getElementById("uploadButton");
+    const deleteButton = document.getElementById("deleteButton");
+    const result = document.getElementById("result");
+
+    function showResult(message, type) {
+      result.textContent = message;
+      result.className = "result " + type;
+    }
+
+    function setButtonLoading(button, loading, normalText, loadingText) {
+      button.disabled = loading;
+      button.textContent = loading ? loadingText : normalText;
+    }
+
+    async function uploadFile() {
+      const file = fileInput.files[0];
+
+      if (!file) {
+        showResult("Please select a file before uploading.", "error");
+        return;
       }
-      .status {
-        margin-top: 24px;
-        color: #27ae60;
-        font-size: 1rem;
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      setButtonLoading(
+        uploadButton,
+        true,
+        "Upload",
+        "Uploading..."
+      );
+
+      showResult(
+        "Uploading " + file.name + "...",
+        "info"
+      );
+
+      try {
+        const response = await fetch("/upload", {
+          method: "POST",
+          body: formData
+        });
+
+        const responseBody = await response.text();
+
+        if (!response.ok) {
+          showResult(
+            "Upload failed\n" +
+            "Status: " + response.status + " " +
+            response.statusText +
+            (responseBody ? "\nResponse: " + responseBody : ""),
+            "error"
+          );
+
+          return;
+        }
+
+        showResult(
+          "File uploaded successfully!\n" +
+          "File: " + file.name + "\n" +
+          "Size: " + file.size + " bytes\n" +
+          "Status: " + response.status + " " +
+          response.statusText,
+          "success"
+        );
+
+        deleteFilename.value = file.name;
+        fileInput.value = "";
+      } catch (error) {
+        showResult(
+          "Could not connect to the server.\n" +
+          error.message,
+          "error"
+        );
+      } finally {
+        setButtonLoading(
+          uploadButton,
+          false,
+          "Upload",
+          "Uploading..."
+        );
       }
-    </style>
-  </head>
-  <body>
-    <div class="card">
-      <h1>Hello from Webserv! 🚀</h1>
-      <div class="names">Made by socketSquad Noor, Sara & Natalia</div>
-      <div>
-        <span class="badge">Codam</span>
-        <span class="badge">C++</span>
-        <span class="badge">HTTP/1.1</span>
-        <span class="badge">Non-blocking I/O</span>
-      </div>
-      <div class="status">✅ Server is running on port 8080</div>
-    </div>
-  </body>
+    }
+
+    async function deleteFile() {
+      const filename = deleteFilename.value.trim();
+
+      if (!filename) {
+        showResult(
+          "Please enter the name of the file to delete.",
+          "error"
+        );
+
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9._-]+$/.test(filename)) {
+        showResult(
+          "Invalid filename.\n" +
+          "Use only letters, numbers, dots, underscores and dashes.",
+          "error"
+        );
+
+        return;
+      }
+
+      setButtonLoading(
+        deleteButton,
+        true,
+        "Delete",
+        "Deleting..."
+      );
+
+      showResult(
+        "Deleting " + filename + "...",
+        "info"
+      );
+
+      try {
+        const response = await fetch(
+          "/uploads/" + encodeURIComponent(filename),
+          {
+            method: "DELETE"
+          }
+        );
+
+        const responseBody = await response.text();
+
+        if (!response.ok) {
+          showResult(
+            "Delete failed\n" +
+            "Status: " + response.status + " " +
+            response.statusText +
+            (responseBody ? "\nResponse: " + responseBody : ""),
+            "error"
+          );
+
+          return;
+        }
+
+        showResult(
+          "File deleted successfully!\n" +
+          "File: " + filename + "\n" +
+          "Status: " + response.status + " " +
+          response.statusText,
+          "success"
+        );
+
+        deleteFilename.value = "";
+      } catch (error) {
+        showResult(
+          "Could not connect to the server.\n" +
+          error.message,
+          "error"
+        );
+      } finally {
+        setButtonLoading(
+          deleteButton,
+          false,
+          "Delete",
+          "Deleting..."
+        );
+      }
+    }
+
+    uploadButton.addEventListener("click", uploadFile);
+    deleteButton.addEventListener("click", deleteFile);
+
+    deleteFilename.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        deleteFile();
+      }
+    });
+  </script>
+
+</body>
 </html>

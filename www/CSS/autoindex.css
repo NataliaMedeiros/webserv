@@ -1,0 +1,155 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  padding: 40px 20px;
+  font-family: Arial, sans-serif;
+  background: #f0f4ff;
+  color: #1f3864;
+}
+
+.autoindex-card {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 36px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.autoindex-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #dce6f8;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #2e75b6;
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2rem;
+  overflow-wrap: anywhere;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.home-button {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 9px 17px;
+  background: #e8f0fe;
+  color: #1f3864;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  text-decoration: none;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.home-button:hover {
+  background: #cdddf8;
+  transform: translateY(-2px);
+}
+
+.file-list {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+}
+
+.file-list li + li {
+  margin-top: 10px;
+}
+
+.file-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  background: #f8faff;
+  border: 1px solid #dce6f8;
+  border-radius: 10px;
+  color: #1f3864;
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.file-row:hover {
+  background: #edf4ff;
+  transform: translateX(4px);
+}
+
+.file-icon {
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.file-name {
+  min-width: 0;
+  color: #2e75b6;
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+
+.file-action {
+  color: #667085;
+  font-size: 0.85rem;
+}
+
+.empty-directory {
+  padding: 28px;
+  color: #667085;
+  text-align: center;
+  background: #f8faff;
+  border: 1px dashed #b8c8e0;
+  border-radius: 10px;
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 20px 12px;
+  }
+
+  .autoindex-card {
+    padding: 24px 18px;
+  }
+
+  .autoindex-header {
+    flex-direction: column;
+  }
+
+  h1 {
+    font-size: 1.55rem;
+  }
+
+  .file-action {
+    display: none;
+  }
+
+  .file-row {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+}

@@ -487,7 +487,7 @@ std::string Handler::buildPath(const RouteDecision& rd, const HttpRequest& req)
     return root + remainder;
 }
 
-/* 
+/*
 * Build CGI environment variables. Used by ClientConnection's
 * non-blocking startCgi().
 */
@@ -569,14 +569,43 @@ HttpResponse Handler::handleAutoindex(const std::string& dirPath,
     std::string displayPath = uriPath.empty() ? "/" : uriPath;
     std::ostringstream html;
 
-    html << "<!DOCTYPE html>\n"
-         << "<html><head><title>Index of " << htmlEscape(displayPath) << "</title></head>\n"
+    html << "<!doctype html>\n"
+         << "<html lang=\"en\">\n"
+         << "<head>\n"
+         << "  <meta charset=\"utf-8\">\n"
+         << "  <meta name=\"viewport\" "
+         << "content=\"width=device-width, initial-scale=1\">\n"
+         << "  <title>Index of "
+         << htmlEscape(displayPath)
+         << "</title>\n"
+         << "  <link rel=\"stylesheet\" "
+         << "href=\"/css/autoindex.css\">\n"
+         << "</head>\n"
          << "<body>\n"
-         << "<h1>Index of " << htmlEscape(displayPath) << "</h1>\n"
-         << "<hr>\n<ul>\n";
+         << "  <main class=\"autoindex-card\">\n"
+         << "    <header class=\"autoindex-header\">\n"
+         << "      <div>\n"
+         << "        <p class=\"eyebrow\">WEBSERV DIRECTORY</p>\n"
+         << "        <h1>Index of "
+         << htmlEscape(displayPath)
+         << "</h1>\n"
+         << "        <p class=\"subtitle\">"
+         << "Browse the files available in this directory."
+         << "</p>\n"
+         << "      </div>\n"
+         << "      <a class=\"home-button\" href=\"/\">Home</a>\n"
+         << "    </header>\n"
+         << "    <ul class=\"file-list\">\n";
 
     if (displayPath != "/")
-        html << "  <li><a href=\"../\">../</a></li>\n";
+        html << "      <li>\n"
+             << "        <a class=\"file-row directory\" href=\"../\">\n"
+             << "          <span class=\"file-icon\">&larr;</span>\n"
+             << "          <span class=\"file-name\">"
+             << "Home"
+             << "</span>\n"
+             << "        </a>\n"
+             << "      </li>\n";
 
     for (std::vector<std::string>::const_iterator it = entries.begin();
          it != entries.end(); ++it)

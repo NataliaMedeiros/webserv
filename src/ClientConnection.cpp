@@ -1,4 +1,5 @@
 #include "ClientConnection.hpp"
+#include <climits>
 #include "Net.hpp"
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -17,7 +18,6 @@
 //   Writing -> Reading  : response fully sent, keep-alive is active
 //   Writing -> Closing  : response fully sent, connection: close
 //   Reading -> Closing  : browser disconnected or sent a bad request
-
 ClientConnection::ClientConnection(int fd, const ServerConfig& config)
     : _fd(fd), _router(config),
     _parser([this](const std::string& path) -> size_t{return _router.maxBodySizeFor(path);})
@@ -169,16 +169,7 @@ void ClientConnection::queueResponse(const HttpResponse& resp, bool keepAlive)
     else
         _state = State::Writing;
 }
-// OLD! Changed for the one below on jul 16 (Noor)
-// void ClientConnection::handleRequest(const HttpRequest& req)
-// {
-//     RouteDecision decision = _router.route(req);
 
-//     Handler handler;
-//     HttpResponse resp = handler.handle(decision, req);
-
-//     queueResponse(resp, req.keepAlive);
-// }
 void ClientConnection::handleRequest(const HttpRequest& req)
 {
     RouteDecision decision = _router.route(req);
@@ -206,35 +197,6 @@ void ClientConnection::handleRequest(const HttpRequest& req)
 
     queueResponse(resp, req.keepAlive);
 }
-
-//OLD!! changed for the one above on 19 May
-// // handleRequest() is the "controller" - it decides what to do with a completed request.
-// // It asks the Router which handler to use, then calls that handler to build the response.
-//
-// void ClientConnection::handleRequest(const HttpRequest& req)
-// {
-//     // Ask the Router: given this request, what should we do?
-//     // (later: Router will use the config file to match location blocks)
-//     RouteDecision decision = _router.route(req);
-
-//     // Only allow the three methods the subject requires
-//     if (req.method != "GET" && req.method != "POST" && req.method != "DELETE")
-//     {
-//         queueResponse(HttpResponse::methodNotAllowed(), req.keepAlive);
-//         return;
-//     }
-
-//     // Pick the right handler based on the routing decision
-//     HttpResponse resp;
-//     if (decision.isCgi)
-//         resp = Handlers::handleCgi(req, decision);         // Run a CGI script (Phase 6)
-//     else if (req.method == "POST" && decision.allowUpload)
-//         resp = Handlers::handleUpload(req, decision);      // Handle file upload (Phase 5)
-//     else
-//         resp = Handlers::serveStatic(req, decision);       // Serve a file from disk (Phase 3)
-
-//     queueResponse(resp, req.keepAlive);
-// }
 
 // startCgi() forks a child process to run a CGI script.
 // The child runs the script via execve(). The parent keeps the
@@ -289,10 +251,35 @@ void ClientConnection::startCgi(const std::string& executable,
         ::close(inPipe[0]);
         ::close(outPipe[1]);
 
-        // Build the argv array for execve()
+        // NEW (Noor): resolve the executable to an absolute path BEFORE
+        // changing directory. If "executable" is relative (e.g. "./cgi_tester")
+        // it is relative to the server's original working directory, chdir'ing
+        // first would break it (execve would look for it inside the script's
+        // directory instead). realpath() must run before chdir().
+        char resolvedExecutable[PATH_MAX];
+        std::string executableToRun = executable;
+        if (::realpath(executable.c_str(), resolvedExecutable) != nullptr)
+            executableToRun = resolvedExecutable;
+        // chdir into the script's own directory so relative file access
+        // from within the CGI script works correctly.
+        // Subject requirement: "The CGI should be run in the correct
+        // directory for relative path file access."
+        std::string scriptDir = ".";
+        std::string scriptFile = scriptPath;
+        size_t lastSlash = scriptPath.find_last_of('/');
+        if (lastSlash != std::string::npos)
+        {
+            scriptDir = scriptPath.substr(0, lastSlash);
+            scriptFile = scriptPath.substr(lastSlash + 1);
+        }
+        if (::chdir(scriptDir.c_str()) != 0)
+            ::exit(1);
+
+        // Build the argv array for execve().
+        // Use just the filename now that we've chdir'd into its directory.
         std::vector<char*> argv;
-        argv.push_back(const_cast<char*>(executable.c_str()));
-        argv.push_back(const_cast<char*>(scriptPath.c_str()));
+        argv.push_back(const_cast<char*>(executableToRun.c_str()));
+        argv.push_back(const_cast<char*>(scriptFile.c_str()));
         argv.push_back(nullptr);
 
         // Build the envp array for execve()
@@ -300,9 +287,7 @@ void ClientConnection::startCgi(const std::string& executable,
         for (const std::string& e : env)
             envp.push_back(const_cast<char*>(e.c_str()));
         envp.push_back(nullptr);
-
-        ::execve(executable.c_str(), argv.data(), envp.data());
-
+        ::execve(executableToRun.c_str(), argv.data(), envp.data());
         // If execve() returns, something went wrong
         ::exit(1);
     }
@@ -370,7 +355,6 @@ void ClientConnection::onCgiWritable()
     }
         return;
     }
-
     if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
         return; // pipe buffer is full right now, poll() will call us again
 
@@ -391,11 +375,6 @@ void ClientConnection::onCgiReadable()
         _cgiOutput += std::string(buf, static_cast<size_t>(bytesRead));
         return; // More data might come, wait for next poll() call
     }
-
-    // NEW (16 july, by Noor): _cgiFd is non-blocking now, so read()
-    // returns -1/EAGAIN when the script simply has no output ready yet.
-    // That is NOT the same as the pipe being closed, without this check
-    // we were finalising the response too early on a large/slow script.
     if (bytesRead < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
         return; // No data right now, poll() will call us again later
 
@@ -403,10 +382,6 @@ void ClientConnection::onCgiReadable()
     ::close(_cgiFd);
     _cgiFd = -1;
 
-// FIXED (16 july, by Noor): check the child's exit status, exactly
-// like Handler's old blocking handleCgi() did, so a crashed/failed
-// script (e.g. python3 failing to open a missing file) returns 502
-// instead of silently 200.
 int status = 0;
 bool cgiFailed = false;
 
@@ -424,11 +399,6 @@ if (cgiFailed)
     _cgiOutput.clear();
     return;
 }
-// FIXED (16 july, by Noor): split off the CGI header block
-    // (Status, Content-Type, etc.) from the actual body, exactly
-    // like Handler::handleCgi() already does for the blocking path.
-    // Without this, the CGI's own headers were leaking into the
-    // HTTP response body.
     size_t sep = _cgiOutput.find("\r\n\r\n");
     size_t offset = 4;
 

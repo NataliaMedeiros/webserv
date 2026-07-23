@@ -1,5 +1,6 @@
 #include "Listener.hpp"
 #include "Net.hpp"
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdexcept>
@@ -10,8 +11,7 @@
 // It creates a TCP socket, binds it to a port, and listens for incoming connections.
 // When a new browser connects, acceptOne() returns a new file descriptor (fd)
 // for that specific connection.
-
-Listener::Listener(uint16_t port) : _port(port)
+Listener::Listener(uint16_t port, const std::string& host) : _port(port), _host(host)
 {
     openAndBind();
 }
@@ -38,13 +38,19 @@ void Listener::openAndBind()
     // instead of freezing the server until someone connects.
     Net::setNonBlocking(_fd.get());
 
-    // Step 4: Bind - attach the socket to a specific port on this machine.
-    // INADDR_ANY means "listen on all network interfaces" (localhost + any real IP)
+// Step 4: Bind - attach the socket to a specific port on this machine.
+    // NEW (Noor): use the configured host/interface via inet_pton() instead
+    // of always INADDR_ANY. "0.0.0.0" (the default) still means "all
+    // interfaces", inet_pton() correctly parses it to the same value.
+    // A genuinely invalid host string now fails loudly instead of being
+    // silently ignored.
     // htons() converts the port number to network byte order (big-endian)
     sockaddr_in addr;
-    addr.sin_family      = AF_INET;
-    addr.sin_port        = htons(_port);
-    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_family = AF_INET;
+    addr.sin_port   = htons(_port);
+
+    if (::inet_pton(AF_INET, _host.c_str(), &addr.sin_addr) != 1)
+        throw std::runtime_error("invalid host address: " + _host);
 
     if (::bind(_fd.get(), (sockaddr*)&addr, sizeof(addr)) < 0)
         throw std::runtime_error(std::string("bind() failed: ") + std::strerror(errno));

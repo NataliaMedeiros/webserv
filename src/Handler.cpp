@@ -597,15 +597,15 @@ HttpResponse Handler::handleAutoindex(const std::string& dirPath,
          << "    </header>\n"
          << "    <ul class=\"file-list\">\n";
 
-    if (displayPath != "/")
-        html << "      <li>\n"
-             << "        <a class=\"file-row directory\" href=\"../\">\n"
-             << "          <span class=\"file-icon\">&larr;</span>\n"
-             << "          <span class=\"file-name\">"
-             << "Home"
-             << "</span>\n"
-             << "        </a>\n"
-             << "      </li>\n";
+    // if (displayPath != "/")
+    //     html << "      <li>\n"
+    //          << "        <a class=\"file-row directory\" href=\"../\">\n"
+    //          << "          <span class=\"file-icon\">&larr;</span>\n"
+    //          << "          <span class=\"file-name\">"
+    //          << "Home"
+    //          << "</span>\n"
+    //          << "        </a>\n"
+    //          << "      </li>\n";
 
     for (std::vector<std::string>::const_iterator it = entries.begin();
          it != entries.end(); ++it)

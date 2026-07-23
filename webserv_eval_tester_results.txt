@@ -1,0 +1,391 @@
+=========================================
+       42 Webserv Evaluation Tester
+=========================================
+
+Checking server...
+Server online
+
+-----------------------------------------
+GET request should return 200
+-----------------------------------------
+PASS
+
+-----------------------------------------
+Unknown method should return error
+-----------------------------------------
+PASS
+
+-----------------------------------------
+POST request
+-----------------------------------------
+PASS
+
+-----------------------------------------
+DELETE request
+-----------------------------------------
+FAIL
+Expected: 204
+Got:
+HTTP/1.1 404 Not Found
+Connection: keep-alive
+Content-Length: 62
+Content-Type: text/html
+Server: webserv
+
+<html>
+<body>
+<h1>Socket Squad's 404 Page</h1>
+</body>
+</html>
+
+-----------------------------------------
+404 custom error page
+-----------------------------------------
+PASS
+
+Testing client body limit
+./webserv_eval_tester.sh: line 123: /usr/bin/curl: Argument list too long
+Check manually - depends on configuration
+Upload test file
+
+-----------------------------------------
+Upload file
+-----------------------------------------
+FAIL
+Expected: 200
+Got:
+HTTP/1.1 400 Bad Request
+Connection: keep-alive
+Content-Length: 144
+Content-Type: text/html; charset=utf-8
+Server: webserv
+
+<!DOCTYPE html>
+<html><head><title>400 Bad Request</title></head>
+<body><h1>400 Bad Request</h1>
+<p>Malformed multipart body</p>
+</body></html>
+
+-----------------------------------------
+Download uploaded file
+-----------------------------------------
+FAIL
+Expected: 42
+Got:
+HTTP/1.1 405 Method Not Allowed
+Allow: POST
+Connection: keep-alive
+Content-Length: 54
+Content-Type: text/html
+Server: webserv
+
+<html>
+<body>
+<h1>Custom 405 Page</h1>
+</body>
+</html>
+
+-----------------------------------------
+Directory request
+-----------------------------------------
+PASS
+
+Redirect test
+No redirect found
+
+CGI TESTS
+
+-----------------------------------------
+CGI GET
+-----------------------------------------
+FAIL
+Expected: 200
+Got:
+HTTP/1.1 404 Not Found
+Connection: keep-alive
+Content-Length: 62
+Content-Type: text/html
+Server: webserv
+
+<html>
+<body>
+<h1>Socket Squad's 404 Page</h1>
+</body>
+</html>
+
+-----------------------------------------
+CGI POST
+-----------------------------------------
+PASS
+
+Checking ports
+tcp        0      0 0.0.0.0:8080            0.0.0.0:*               LISTEN     
+Port 8080 listening
+
+=================================
+Siege stress tests
+=================================
+f1r1s2% ./webserv_eval_tester.sh
+=========================================
+       42 Webserv Evaluation Tester
+=========================================
+
+Checking server...
+Server online
+
+-----------------------------------------
+GET request should return 200
+-----------------------------------------
+PASS
+
+-----------------------------------------
+Unknown method should return error
+-----------------------------------------
+PASS
+
+-----------------------------------------
+POST request
+-----------------------------------------
+PASS
+
+-----------------------------------------
+DELETE request
+-----------------------------------------
+FAIL
+Expected: 204
+Got:
+HTTP/1.1 404 Not Found
+Connection: keep-alive
+Content-Length: 62
+Content-Type: text/html
+Server: webserv
+
+<html>
+<body>
+<h1>Socket Squad's 404 Page</h1>
+</body>
+</html>
+
+-----------------------------------------
+404 custom error page
+-----------------------------------------
+PASS
+
+Testing client body limit
+./webserv_eval_tester.sh: line 123: /usr/bin/curl: Argument list too long
+Check manually - depends on configuration
+Upload test file
+
+-----------------------------------------
+Upload file
+-----------------------------------------
+FAIL
+Expected: 200
+Got:
+HTTP/1.1 400 Bad Request
+Connection: keep-alive
+Content-Length: 144
+Content-Type: text/html; charset=utf-8
+Server: webserv
+
+<!DOCTYPE html>
+<html><head><title>400 Bad Request</title></head>
+<body><h1>400 Bad Request</h1>
+<p>Malformed multipart body</p>
+</body></html>
+
+-----------------------------------------
+Download uploaded file
+-----------------------------------------
+FAIL
+Expected: 42
+Got:
+HTTP/1.1 405 Method Not Allowed
+Allow: POST
+Connection: keep-alive
+Content-Length: 54
+Content-Type: text/html
+Server: webserv
+
+<html>
+<body>
+<h1>Custom 405 Page</h1>
+</body>
+</html>
+
+-----------------------------------------
+Directory request
+-----------------------------------------
+PASS
+
+Redirect test
+No redirect found
+
+CGI TESTS
+
+-----------------------------------------
+CGI GET
+-----------------------------------------
+FAIL
+Expected: 200
+Got:
+HTTP/1.1 404 Not Found
+Connection: keep-alive
+Content-Length: 62
+Content-Type: text/html
+Server: webserv
+
+<html>
+<body>
+<h1>Socket Squad's 404 Page</h1>
+</body>
+</html>
+
+-----------------------------------------
+CGI POST
+-----------------------------------------
+PASS
+
+Checking ports
+tcp        0      0 0.0.0.0:8080            0.0.0.0:*               LISTEN     
+Port 8080 listening
+
+=================================
+Siege stress tests
+=================================
+
+Simple GET benchmark
+
+{	"transactions":			      401087,
+	"availability":			      100.00,
+	"elapsed_time":			       59.07,
+	"data_transferred":		     3491.90,
+	"response_time":		        0.01,
+	"transaction_rate":		     6790.03,
+	"throughput":			       59.11,
+	"concurrency":			       49.60,
+	"successful_transactions":	      401087,
+	"failed_transactions":		           0,
+	"longest_transaction":		        0.03,
+	"shortest_transaction":		        0.00
+}
+
+Heavy concurrency
+
+{	"transactions":			        4000,
+	"availability":			      100.00,
+	"elapsed_time":			       16.09,
+	"data_transferred":		       34.82,
+	"response_time":		        0.01,
+	"transaction_rate":		      248.60,
+	"throughput":			        2.16,
+	"concurrency":			        1.73,
+	"successful_transactions":	        4000,
+	"failed_transactions":		           0,
+	"longest_transaction":		        0.07,
+	"shortest_transaction":		        0.00
+}
+
+Long running test
+
+{	"transactions":			     1967005,
+	"availability":			      100.00,
+	"elapsed_time":			      299.84,
+	"data_transferred":		    17124.93,
+	"response_time":		        0.02,
+	"transaction_rate":		     6560.18,
+	"throughput":			       57.11,
+	"concurrency":			       99.60,
+	"successful_transactions":	     1967005,
+	"failed_transactions":		           0,
+	"longest_transaction":		        0.05,
+	"shortest_transaction":		        0.01
+}
+
+=================================
+RESULT
+=================================
+Passed: 6
+Failed: 4
+
+Manual checks still required:
+- Browser network tab
+- Multiple hosts/interfaces
+- Virtual hosts
+- Telnet raw HTTP requests
+- Two webserv processes same port
+- CGI infinite loop timeout
+- Valgrind memory leaks
+- Directory listing behaviour
+
+Done.
+f1r1s2% 
+
+
+Simple GET benchmark
+
+{	"transactions":			      401087,
+	"availability":			      100.00,
+	"elapsed_time":			       59.07,
+	"data_transferred":		     3491.90,
+	"response_time":		        0.01,
+	"transaction_rate":		     6790.03,
+	"throughput":			       59.11,
+	"concurrency":			       49.60,
+	"successful_transactions":	      401087,
+	"failed_transactions":		           0,
+	"longest_transaction":		        0.03,
+	"shortest_transaction":		        0.00
+}
+
+Heavy concurrency
+
+{	"transactions":			        4000,
+	"availability":			      100.00,
+	"elapsed_time":			       16.09,
+	"data_transferred":		       34.82,
+	"response_time":		        0.01,
+	"transaction_rate":		      248.60,
+	"throughput":			        2.16,
+	"concurrency":			        1.73,
+	"successful_transactions":	        4000,
+	"failed_transactions":		           0,
+	"longest_transaction":		        0.07,
+	"shortest_transaction":		        0.00
+}
+
+Long running test
+
+{	"transactions":			     1967005,
+	"availability":			      100.00,
+	"elapsed_time":			      299.84,
+	"data_transferred":		    17124.93,
+	"response_time":		        0.02,
+	"transaction_rate":		     6560.18,
+	"throughput":			       57.11,
+	"concurrency":			       99.60,
+	"successful_transactions":	     1967005,
+	"failed_transactions":		           0,
+	"longest_transaction":		        0.05,
+	"shortest_transaction":		        0.01
+}
+
+=================================
+RESULT
+=================================
+Passed: 6
+Failed: 4
+
+Manual checks still required:
+- Browser network tab
+- Multiple hosts/interfaces
+- Virtual hosts
+- Telnet raw HTTP requests
+- Two webserv processes same port
+- CGI infinite loop timeout
+- Valgrind memory leaks
+- Directory listing behaviour
+
+Done.
+f1r1s2% 
+

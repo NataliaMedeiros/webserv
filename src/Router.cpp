@@ -6,14 +6,6 @@
 Router::Router(const ServerConfig& servInput) : servConfig(&servInput)
 {}
 
-// static void copyServerDefaults(RouteDecision& decision, const ServerConfig& config)
-// {
-//     if (!config.root.empty())
-//         decision.root = config.root;
-//     if (!config.index.empty())
-//         decision.index = config.index;
-//     decision.errorPages = config.errorPages;
-// }
 static void copyServerDefaults(RouteDecision& decision,const ServerConfig& config)
 {
     if (!config.root.empty())
@@ -85,21 +77,8 @@ RouteDecision Router::route(const HttpRequest& req) const
             {
                 best.errorPages[ep->first] = ep->second;
             }
-            std::cerr
-    << "LOCATION: " << loc.path
-    << " hasMaxBodySize: " << loc.hasMaxBodySize
-    << " value: " << loc.maxBodySize
-    << std::endl;
         }
     }
-
-
-  std::cerr << "ROUTE TEST: "
-          << req.path
-          << " -> "
-          << best.maxBodySize
-          << std::endl;
-
     return best;
 }
 

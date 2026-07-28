@@ -61,18 +61,15 @@ void ClientConnection::onReadable()
         // recv() reads available bytes from the socket into buf.
         // Returns: >0 = bytes read, 0 = browser closed connection, -1 = error or nothing left
         ssize_t bytesRead = ::recv(fd(), buf, sizeof(buf), 0);
-
         if (bytesRead > 0)
         {
             // Feed the received bytes to the parser.
             // The parser may need multiple calls before it has a complete request
             // (TCP can split one HTTP request across multiple recv() calls).
             HttpRequest req;
-            // before it was: RequestParser
             HttpRequestParser::Result result = _parser.feed(
                 std::string(buf, static_cast<size_t>(bytesRead)), req
             );
-
             if (result == HttpRequestParser::Result::PayloadTooLarge)
             {
                 std::cout << "Sending status: " << HttpResponse::error(413, "Payload Too Large").status << "\n";
@@ -87,7 +84,7 @@ void ClientConnection::onReadable()
                 _state = State::Closing;
                 return;
             }
-            if (result == HttpRequestParser::Result::BadRequest) // before it was RequestParser
+            if (result == HttpRequestParser::Result::BadRequest)
             {
                 // The browser sent something we cannot understand - send 400 and close
                 std::cout << "  Bad request on fd=" << fd() << "\n";
@@ -95,22 +92,16 @@ void ClientConnection::onReadable()
                 _state = State::Closing;
                 return;
             }
-
             if (result == HttpRequestParser::Result::Complete)
             {
                 // We have a full, valid HTTP request - handle it
                 std::cout << "  Request complete: " << req.method << " " << req.path << "\n";
                 handleRequest(req);
-
-                // After sending the response, keep the connection open if the browser wants to
-                // _state = req.keepAlive ? State::Reading : State::Closing;
                 return;
             }
-
             // Result::NeedMore - request is not complete yet, keep reading
             continue;
         }
-
         if (bytesRead == 0)
         {
             // Browser closed the connection cleanly
@@ -121,7 +112,7 @@ void ClientConnection::onReadable()
         // bytesRead < 0
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             return; // No more data right now - poll() will tell us when there is more
-
+        
         // Any other error - close the connection
         _state = State::Closing;
         return;
@@ -252,7 +243,7 @@ void ClientConnection::startCgi(const std::string& executable,
         ::close(inPipe[0]);
         ::close(outPipe[1]);
 
-        // NEW (Noor): resolve the executable to an absolute path BEFORE
+        // Resolve the executable to an absolute path BEFORE
         // changing directory. If "executable" is relative (e.g. "./cgi_tester")
         // it is relative to the server's original working directory, chdir'ing
         // first would break it (execve would look for it inside the script's
@@ -275,7 +266,6 @@ void ClientConnection::startCgi(const std::string& executable,
         }
         if (::chdir(scriptDir.c_str()) != 0)
             ::exit(1);
-
         // Build the argv array for execve().
         // Use just the filename now that we've chdir'd into its directory.
         std::vector<char*> argv;
@@ -292,7 +282,6 @@ void ClientConnection::startCgi(const std::string& executable,
         // If execve() returns, something went wrong
         ::exit(1);
     }
-
     // PARENT PROCESS
     ::close(outPipe[1]); // we don't write to the CGI's stdout
     ::close(inPipe[0]);  // we don't read from the CGI's stdin
@@ -302,7 +291,7 @@ void ClientConnection::startCgi(const std::string& executable,
     _cgiBody = body;
     _cgiBodyWritten = 0;
 
-    // NEW (16 july, by Noor): pipes are blocking by default. Without this,
+    // Pipes are blocking by default. Without this,
     // write()/read() here would freeze the whole event loop, even though
     // poll() told us the fd was ready, because a single write() call can
     // still block until the pipe has room for ALL the bytes we ask for.
@@ -317,11 +306,9 @@ void ClientConnection::startCgi(const std::string& executable,
         ::close(_cgiStdinFd);
         _cgiStdinFd = -1;
     }
-
-    // NEW (Noor): record when this CGI process started, so EventLoop
+    // Record when this CGI process started, so EventLoop
     // can later detect if it has been running too long.
     _cgiStartTime = ::time(nullptr);
-
     _state = State::CGI;
 }
 

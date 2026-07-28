@@ -6,33 +6,28 @@
 #include <vector>
 #include <poll.h>
 
-// NOTE: EventLoop is the heart of the server.
-// It monitors:
-/// - listener fds for new connections
-/// - client fds for readable/writable events
-class EventLoop {
-public:
-  // OLD
-  //explicit EventLoop(Listener& listener, ConnectionStore& store);
+// NOTE: EventLoop is the heart of the server. It monitors:
+// - listener fds for new connections
+// - client fds for readable/writable events
+class EventLoop 
+{
+  public:
+    EventLoop(std::vector<Listener>& listeners,
+              const std::vector<ServerConfig>& configs,
+              ConnectionStore& store);
+    // Runs forever, until the process is killed.
+    void run();
 
-  // NEW
-  EventLoop(std::vector<Listener>& listeners,
-            const std::vector<ServerConfig>& configs,
-            ConnectionStore& store);
-  // Runs forever (MVP). In later phases you can add graceful shutdown.
-  void run();
+  private:
+    std::vector<Listener>& _listeners;
+    ConnectionStore& _store;
+    std::vector<pollfd> _pollFds;
+    std::map<int, ServerConfig> _listenerConfigs;
 
-private:
-  // Listener& _listener;   OLD
-  std::vector<Listener>& _listeners; // NEW:
-  ConnectionStore& _store;
-  std::vector<pollfd> _pollFds;
-  std::map<int, ServerConfig> _listenerConfigs;
+    void rebuildPollFds();
+    void dispatchEvents();
 
-  void rebuildPollFds();
-  void dispatchEvents();
-
-  // NEW (Noor): checks every active connection for a CGI script that
-  // has been running too long, kills and cleans it up if so.
-  void checkCgiTimeouts();
+    // Checks every active connection for a CGI script that
+    // has been running too long, kills and cleans it up if so.
+    void checkCgiTimeouts();
 };

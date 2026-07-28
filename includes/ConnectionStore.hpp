@@ -20,6 +20,4 @@ public:
 
 private:
   std::map<int, std::unique_ptr<ClientConnection>> _conns;
-
-  // ServerConfig _config;
 };

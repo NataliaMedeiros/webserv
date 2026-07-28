@@ -6,8 +6,7 @@
 class ConfigParser
 {
 public:
-   
-    //Returns one ServerConfig per "server{ ... }" block in the config file.
+    //  Returns one ServerConfig per "server{ ... }" block in the config file.
     static std::vector<ServerConfig> parse(const std::string& filename);
 
 private:

@@ -14,6 +14,6 @@ namespace Net {
   // NOTE: Minimal MIME guessing for static serving.
   std::string guessContentType(const std::string& path);
 
-  // NOTE: Read a file fully into memory (MVP). Later you may stream large files.
+  // NOTE: Read a file fully into memory.
   bool readFileToString(const std::string& path, std::string& out);
 }

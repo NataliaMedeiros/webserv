@@ -31,4 +31,8 @@ private:
 
   void rebuildPollFds();
   void dispatchEvents();
+
+  // NEW (Noor): checks every active connection for a CGI script that
+  // has been running too long, kills and cleans it up if so.
+  void checkCgiTimeouts();
 };

@@ -3,6 +3,7 @@
 #include "Net.hpp"
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <signal.h>
 #include <cerrno>
 #include <iostream>
 
@@ -317,6 +318,10 @@ void ClientConnection::startCgi(const std::string& executable,
         _cgiStdinFd = -1;
     }
 
+    // NEW (Noor): record when this CGI process started, so EventLoop
+    // can later detect if it has been running too long.
+    _cgiStartTime = ::time(nullptr);
+
     _state = State::CGI;
 }
 
@@ -362,6 +367,48 @@ void ClientConnection::onCgiWritable()
     // gets EOF instead of hanging forever waiting for more input.
     ::close(_cgiStdinFd);
     _cgiStdinFd = -1;
+}
+
+// NEW (Noor): checks whether the currently running CGI script has
+// been running longer than CGI_TIMEOUT_SECONDS. EventLoop calls this
+// periodically for every connection currently in the CGI state.
+bool ClientConnection::cgiTimedOut() const
+{
+    if (_state != State::CGI || _cgiPid == -1)
+        return false;
+
+    time_t now = ::time(nullptr);
+    return (now - _cgiStartTime) >= CGI_TIMEOUT_SECONDS;
+}
+
+// NEW (Noor): kills a hung CGI child, reaps it, closes both pipes,
+// and queues a 504 Gateway Timeout response for the client.
+void ClientConnection::killCgi()
+{
+    if (_cgiPid != -1)
+    {
+        ::kill(_cgiPid, SIGKILL);
+        ::waitpid(_cgiPid, nullptr, 0); // blocking wait is fine here,
+                                        // the child is already dying
+        _cgiPid = -1;
+    }
+
+    if (_cgiFd != -1)
+    {
+        ::close(_cgiFd);
+        _cgiFd = -1;
+    }
+
+    if (_cgiStdinFd != -1)
+    {
+        ::close(_cgiStdinFd);
+        _cgiStdinFd = -1;
+    }
+
+    _cgiOutput.clear();
+    _cgiBody.clear();
+
+    queueResponse(HttpResponse::text(504, "Gateway Timeout"), false);
 }
 
 // onCgiReadable() is called by EventLoop when the CGI pipe has data

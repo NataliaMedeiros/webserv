@@ -8,6 +8,7 @@
 #include <vector> // NEW
 #include <poll.h>
 #include <sys/types.h> // NEW: for pid_t
+#include <ctime>
 
 // NOTE: One ClientConnection represents one TCP client socket.
 // It owns buffers and parsing state.
@@ -45,6 +46,9 @@ public:
   bool hasCgiStdinPipe() const { return _cgiStdinFd != -1; }
   int cgiStdinFd() const { return _cgiStdinFd; }
   void onCgiWritable();
+  // NEW (Noor): called periodically by EventLoop to check for a hung CGI script
+  bool cgiTimedOut() const;
+  void killCgi(); // kills and cleans up a timed-out CGI child, sends 504
 
 private:
   Fd _fd;
@@ -59,13 +63,18 @@ private:
   // NOTE: Incremental parser that can accept partial reads.
   HttpRequestParser _parser; // before it wat RequestParser
 
-  // NEW: CGI process tracking (7 july, Noor)
+// NEW: CGI process tracking (7 july, Noor)
   // _cgiPid --> pid of the child process running the script
   // _cgiFd --> read end of the pipe, where CGI output comes from
   // _cgiOutput --> accumulated output from the CGI script
   pid_t _cgiPid = -1;
   int _cgiFd = -1;              // read end: CGI output comes from here
   std::string _cgiOutput;
+
+  // NEW (Noor): timeout for a hanging CGI script. If a script runs
+  // longer than CGI_TIMEOUT_SECONDS, we kill it and respond with 504.
+  static const int CGI_TIMEOUT_SECONDS = 5;
+  time_t _cgiStartTime = 0;
 
   // NEW (16 july, by Noor): non-blocking write of the request body to CGI stdin
   int _cgiStdinFd = -1;         // write end: request body goes to the CGI's stdin

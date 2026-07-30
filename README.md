@@ -4,7 +4,7 @@
 
 ## Description
 
-Webserv is a custom HTTP server written in **C++2b** as part of the 42 School curriculum.
+Webserv is a custom HTTP server developed as part of the 42 School curriculum.
 
 The goal of this project is to understand how web servers work by implementing HTTP communication, socket programming, request parsing, response generation, and configuration handling from scratch.
 

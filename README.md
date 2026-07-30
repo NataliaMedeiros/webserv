@@ -185,7 +185,7 @@ The target file should be removed from the server.
 * Handles all socket I/O through a single event loop.
 * Uses a configuration-based architecture inspired by NGINX.
 * Uses CGI processes only for script execution.
-   Uses `std::remove()` to implement DELETE requests. Since file deletion is required by the project and `std::remove()` provides a standard C++ way to remove files, it is used for handling DELETE operations.
+* Uses `std::remove()` to implement DELETE requests. Since file deletion is required by the project and `std::remove()` provides a standard C++ way to remove files, it is used for handling DELETE operations.
 
 # Resources
 

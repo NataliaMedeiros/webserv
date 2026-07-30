@@ -189,31 +189,9 @@ The target file should be removed from the server.
 
 # Resources
 
-## Documentation and References
-
-* HTTP specification:
-
-  * RFC 9110 — HTTP Semantics
-    https://www.rfc-editor.org/rfc/rfc9110
-
-* HTTP/1.1 specification:
-
-  * RFC 9112 — HTTP/1.1
-    https://www.rfc-editor.org/rfc/rfc9112
-
-* Socket programming documentation:
-
-  * Linux socket programming manual pages
-    https://man7.org/linux/man-pages/
-
-* NGINX documentation (used as a reference for configuration concepts):
-
-  * https://nginx.org/en/docs/
-
-* CGI specification:
-
-  * Common Gateway Interface documentation
-    https://www.rfc-editor.org/rfc/rfc3875
+* RFC 9110
+* RFC 9112
+* NGINX Documentation
 
 # AI Usage
 

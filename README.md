@@ -179,7 +179,7 @@ The target file should be removed from the server.
 
 # Technical Choices
 
-* Written in **C++2b**. The project uses a newer C++ standard supported by the current version of the Webserv project requirements.
+* Written in **C++2b**.
 * Uses sockets for network communication.
 * Uses `poll()` as the event monitoring mechanism.
 * Handles all socket I/O through a single event loop.
@@ -189,8 +189,10 @@ The target file should be removed from the server.
 
 # Resources
 
-* RFC 9110
-* RFC 9112
+## Documentation and References
+
+* RFC 9110 — HTTP Semantics
+* RFC 9112 — HTTP/1.1
 * NGINX Documentation
 
 # AI Usage
@@ -203,4 +205,4 @@ They were used for:
 * Clarifying documentation and Unix system calls.
 * Helping debug.
 
-All project code, architecture decisions, and implementation choices were developed by the project authors.
+All project code, architecture decisions, and implementation choices were made by the project authors.

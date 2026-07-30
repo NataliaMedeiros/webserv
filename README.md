@@ -166,7 +166,7 @@ curl -i -F "file=@test.txt" http://localhost:8080/upload
 DELETE requests can be tested by sending a request to an existing file:
 
 ```bash
-curl -i -X DELETE http://localhost:8080/path/to/file
+curl -i -X DELETE http://localhost:8080/uploads/[file_name]
 ```
 
 Expected result:

@@ -10,7 +10,13 @@ The goal of this project is to understand how web servers work by implementing H
 
 The server follows the HTTP/1.1 protocol and uses a non-blocking event-driven architecture to handle multiple clients simultaneously. It supports static website hosting, file uploads, custom error pages, directory listing, CGI execution, and configurable routing inspired by NGINX configuration files.
 
-The server is executed with:
+The server can be executed using the default configuration:
+
+```bash
+./webserv
+```
+
+Alternatively, a custom configuration file can be provided:
 
 ```bash
 ./webserv [configuration_file]
@@ -80,10 +86,16 @@ make re     # Recompile the project
 
 ### Execution
 
-Run the server with a configuration file:
+Run the server using the default config:
 
 ```bash
-./webserv configs/default_with_error.config
+./webserv
+```
+
+To run the server with a different configuration file, pass the file path as an argument:
+
+```bash
+./webserv [configuration_file]
 ```
 
 Other configuration files can be used depending on the desired test scenario.
@@ -165,24 +177,15 @@ HTTP/1.1 204 No Content
 
 The target file should be removed from the server.
 
-# Subject Tester
-
-The official 42 tester can be used to validate the project.
-
-* Download the tester executable separately.
-* Keep it outside the `webserv` repository.
-* Run the tester and follow the instructions provided.
-* Additional debugging changes and fixes are available in the `sara_debug` branch.
-
 # Technical Choices
 
-* Written in **C++2b**. The current version of the Webserv subject allows using a newer C++ standard than C++98, therefore this is an intentional choice and not an implementation mistake.
+* Written in **C++2b**. The project uses a newer C++ standard supported by the current version of the Webserv project requirements.
 * Uses sockets for network communication.
 * Uses `poll()` as the event monitoring mechanism.
 * Handles all socket I/O through a single event loop.
 * Uses a configuration-based architecture inspired by NGINX.
 * Uses CGI processes only for script execution.
-* Uses `std::remove()` for DELETE requests. The subject requires DELETE functionality, but the allowed function list does not provide a direct file deletion function. `std::remove()` is therefore used as the standard C++ solution for removing files.
+   Uses `std::remove()` to implement DELETE requests. Since file deletion is required by the project and `std::remove()` provides a standard C++ way to remove files, it is used for handling DELETE operations.
 
 # Resources
 
@@ -220,11 +223,6 @@ They were used for:
 
 * Understanding HTTP concepts and server architecture.
 * Clarifying documentation and Unix system calls.
-* Reviewing README structure and improving explanations.
-* Helping debug and reason about potential implementation issues.
+* Helping debug.
 
-All project code, architecture decisions, and implementation choices were developed and validated by the project authors.
-
-# Authors
-
-42 School Webserv project.
+All project code, architecture decisions, and implementation choices were developed by the project authors.

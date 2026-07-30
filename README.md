@@ -4,7 +4,7 @@
 
 ## Description
 
-Webserv is a custom HTTP server written in **C++98** as part of the 42 School curriculum.
+Webserv is a custom HTTP server written in **C++2b** as part of the 42 School curriculum.
 
 The goal of this project is to understand how web servers work by implementing HTTP communication, socket programming, request parsing, response generation, and configuration handling from scratch.
 
@@ -88,9 +88,9 @@ Run the server with a configuration file:
 
 Other configuration files can be used depending on the desired test scenario.
 
-### Testing
+# Testing
 
-#### Basic request
+## Basic Request
 
 ```bash
 curl -i http://localhost:8080
@@ -98,7 +98,7 @@ curl -i http://localhost:8080
 
 The `-i` option displays the HTTP response headers and status line.
 
-#### Error pages
+## Error Pages
 
 ```bash
 curl -i http://localhost:8080/nope.html
@@ -106,13 +106,13 @@ curl -i http://localhost:8080/nope.html
 
 Expected response:
 
-```
+```http
 HTTP/1.1 404 Not Found
 ```
 
 The response body should contain the configured error page.
 
-#### Autoindex
+## Autoindex
 
 ```bash
 curl -i http://localhost:8080/files/
@@ -123,7 +123,7 @@ Expected result:
 * HTML directory listing is displayed.
 * The server does not return `403 Forbidden` or `404 Not Found`.
 
-#### CGI
+## CGI
 
 ```bash
 curl -i http://localhost:8080/cgi/hello.py
@@ -131,7 +131,7 @@ curl -i http://localhost:8080/cgi/hello.py
 
 Expected result:
 
-```
+```http
 HTTP/1.1 200 OK
 ```
 
@@ -143,13 +143,29 @@ Example:
 <h1>Hello CGI</h1>
 ```
 
-#### Upload
+## Upload
 
 ```bash
 curl -i -F "file=@test.txt" http://localhost:8080/upload
 ```
 
-### Subject Tester
+## DELETE
+
+DELETE requests can be tested by sending a request to an existing file:
+
+```bash
+curl -i -X DELETE http://localhost:8080/path/to/file
+```
+
+Expected result:
+
+```http
+HTTP/1.1 204 No Content
+```
+
+The target file should be removed from the server.
+
+# Subject Tester
 
 The official 42 tester can be used to validate the project.
 
@@ -158,18 +174,19 @@ The official 42 tester can be used to validate the project.
 * Run the tester and follow the instructions provided.
 * Additional debugging changes and fixes are available in the `sara_debug` branch.
 
-## Technical Choices
+# Technical Choices
 
-* Written in C++98 according to the project requirements.
+* Written in **C++2b**. The current version of the Webserv subject allows using a newer C++ standard than C++98, therefore this is an intentional choice and not an implementation mistake.
 * Uses sockets for network communication.
 * Uses `poll()` as the event monitoring mechanism.
-* Handles all socket I/O through the event loop.
+* Handles all socket I/O through a single event loop.
 * Uses a configuration-based architecture inspired by NGINX.
 * Uses CGI processes only for script execution.
+* Uses `std::remove()` for DELETE requests. The subject requires DELETE functionality, but the allowed function list does not provide a direct file deletion function. `std::remove()` is therefore used as the standard C++ solution for removing files.
 
-## Resources
+# Resources
 
-### Documentation and References
+## Documentation and References
 
 * HTTP specification:
 
@@ -195,7 +212,7 @@ The official 42 tester can be used to validate the project.
   * Common Gateway Interface documentation
     https://www.rfc-editor.org/rfc/rfc3875
 
-### AI Usage
+# AI Usage
 
 AI tools were used as a development assistant during the project.
 
@@ -208,30 +225,6 @@ They were used for:
 
 All project code, architecture decisions, and implementation choices were developed and validated by the project authors.
 
-## Authors
+# Authors
 
 42 School Webserv project.
-
-
-I have this informations
-## How to test - DELETE BEFORE SUBMIT
-- make
-- ./webserv configs/default_with_error.config(or choose other)
-- basic: curl -i http://localhost:8080
--  test error pages from another terminal or browser:
-curl -i http://localhost:8080/nope.html
--i shows the response headers and status line. Confirm: HTTP/1.1 404 Not Found and the body matches your custom error page HTML (or generic, depending on which config you started the server with).
-- test autoindex
-curl -i http://localhost:8080/files/
-Confirm you get back actual HTML with a directory listing, not a 403 or 404.
-- test CGI
-curl -i http://localhost:8080/cgi/hello.py
-Confirm 200 OK and the body shows <h1>Hello CGI</h1> (or whatever script outputs) 
-- test Upload
-curl -i -F "file=@test.txt" http://localhost:8080/upload
-
-
-## Use the subject tester - DELETE BEFORE SUBMIT
-- tester is an executable, download and keep it outside of webserv
-- the other necessary instrunctions comes after running the tester-- all requirements are added in the branch sara_debug
-

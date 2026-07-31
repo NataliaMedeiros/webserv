@@ -3,6 +3,7 @@
 #include "Net.hpp"
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sstream>
 #include <signal.h>
 #include <cerrno>
 #include <iostream>
@@ -416,26 +417,26 @@ void ClientConnection::onCgiReadable()
     ::close(_cgiFd);
     _cgiFd = -1;
 
-int status = 0;
-bool cgiFailed = false;
+    int status = 0;
+    bool cgiFailed = false;
 
-if (_cgiPid != -1)
-{
-    ::waitpid(_cgiPid, &status, 0);
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-        cgiFailed = true;
-    _cgiPid = -1;
-}
+    if (_cgiPid != -1)
+    {
+        ::waitpid(_cgiPid, &status, 0);
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+            cgiFailed = true;
+        _cgiPid = -1;
+    }
 
-if (cgiFailed)
-{
-    queueResponse(HttpResponse::text(502, "Bad Gateway"), false);
-    _cgiOutput.clear();
-    return;
-}
+    if (cgiFailed)
+    {
+        queueResponse(HttpResponse::text(502, "Bad Gateway"), false);
+        _cgiOutput.clear();
+        return;
+    }
+
     size_t sep = _cgiOutput.find("\r\n\r\n");
     size_t offset = 4;
-
     if (sep == std::string::npos)
     {
         sep = _cgiOutput.find("\n\n");
@@ -446,12 +447,139 @@ if (cgiFailed)
     resp.status = 200;
     resp.reason = "OK";
 
+    // Honor a CGI-provided "Status:" header line, if present.
+    if (sep != std::string::npos)
+    {
+        size_t statusPos = _cgiOutput.find("Status:");
+        if (statusPos != std::string::npos && statusPos < sep)
+        {
+            std::istringstream statusStream(_cgiOutput.substr(statusPos + 7));
+            statusStream >> resp.status;
+            std::getline(statusStream, resp.reason);
+        }
+    }
+
     if (sep != std::string::npos)
         resp.setBody(_cgiOutput.substr(sep + offset), "text/html; charset=utf-8");
     else
         resp.setBody(_cgiOutput, "text/html; charset=utf-8");
 
     _cgiOutput.clear();
-
     queueResponse(resp, false);
 }
+
+
+
+// // onCgiReadable() is called by EventLoop when the CGI pipe has data
+// // We accumulate the output and build a response when the pipe closes.
+// void ClientConnection::onCgiReadable()
+// {
+//     char buf[4096];
+//     ssize_t bytesRead = ::read(_cgiFd, buf, sizeof(buf));
+//     if (bytesRead > 0)
+//     {
+//         _cgiOutput += std::string(buf, static_cast<size_t>(bytesRead));
+//         return; // More data might come, wait for next poll() call
+//     }
+//     if (bytesRead < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+//         return; // No data right now, poll() will call us again later
+
+//     // bytesRead == 0 means the pipe closed, script is done
+//     ::close(_cgiFd);
+//     _cgiFd = -1;
+
+// int status = 0;
+// bool cgiFailed = false;
+
+// if (_cgiPid != -1)
+// {
+//     ::waitpid(_cgiPid, &status, 0);
+//     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+//         cgiFailed = true;
+//     _cgiPid = -1;
+// }
+
+// if (cgiFailed)
+// {
+//     queueResponse(HttpResponse::text(502, "Bad Gateway"), false);
+//     _cgiOutput.clear();
+//     return;
+// }
+// //     size_t sep = _cgiOutput.find("\r\n\r\n");
+// //     size_t offset = 4;
+
+// //     if (sep == std::string::npos)
+// //     {
+// //         sep = _cgiOutput.find("\n\n");
+// //         offset = 2;
+// //     }
+
+// //     HttpResponse resp;
+// //     resp.status = 200;
+// //     resp.reason = "OK";
+
+// //     if (sep != std::string::npos)
+// //         resp.setBody(_cgiOutput.substr(sep + offset), "text/html; charset=utf-8");
+// //     else
+// //         resp.setBody(_cgiOutput, "text/html; charset=utf-8");
+
+// //     _cgiOutput.clear();
+
+// //     queueResponse(resp, false);
+// // }
+// size_t sep = _cgiOutput.find("\r\n\r\n");
+//     size_t offset = 4;
+//     if (sep == std::string::npos)
+//     {
+//         sep = _cgiOutput.find("\n\n");
+//         offset = 2;
+//     }
+
+//     HttpResponse resp;
+//     resp.status = 200;
+//     resp.reason = "OK";
+
+//     // FIXED (Noor): honor a CGI-provided "Status:" header line, if present,
+//     // instead of always hardcoding 200. Standard CGI scripts can override
+//     // the response status this way (e.g. "Status: 404 Not Found").
+//     if (sep != std::string::npos)
+//     {
+//         std::string headerPart = _cgiOutput.substr(0, sep);
+//         size_t statusPos = headerPart.find("Status:");
+//         if (statusPos != std::string::npos)
+//         {
+//             size_t lineEnd = headerPart.find('\n', statusPos);
+//             std::string statusLine = headerPart.substr(
+//                 statusPos + 7,
+//                 (lineEnd == std::string::npos ? headerPart.size() : lineEnd) - (statusPos + 7)
+//             );
+//             // trim leading/trailing whitespace and any trailing \r
+//             size_t start = statusLine.find_first_not_of(" \t");
+//             size_t end = statusLine.find_last_not_of(" \t\r");
+//             if (start != std::string::npos)
+//                 statusLine = statusLine.substr(start, end - start + 1);
+
+//             size_t spacePos = statusLine.find(' ');
+//             if (spacePos != std::string::npos)
+//             {
+//                 try
+//                 {
+//                     resp.status = std::stoi(statusLine.substr(0, spacePos));
+//                     resp.reason = statusLine.substr(spacePos + 1);
+//                 }
+//                 catch (...)
+//                 {
+//                     // malformed status line, keep the 200 default
+//                 }
+//             }
+//         }
+//     }
+
+//     if (sep != std::string::npos)
+//         resp.setBody(_cgiOutput.substr(sep + offset), "text/html; charset=utf-8");
+//     else
+//         resp.setBody(_cgiOutput, "text/html; charset=utf-8");
+
+//     _cgiOutput.clear();
+//     queueResponse(resp, false);
+// }

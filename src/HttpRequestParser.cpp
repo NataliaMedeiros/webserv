@@ -6,29 +6,13 @@
 #include <cctype>
 #include <vector>
 #include <cstdlib>
-#include <algorithm> // std::min
-#include <cerrno>    // errno, ERANGE
-
+#include <algorithm>
+#include <cerrno
 const size_t HttpRequestParser::MAX_HEADER_SIZE;
-
-// HttpRequestParser::HttpRequestParser(const std::function < size_t(const std::string&) >& maxBodySizeFor)
-//     : _maxBodySizeFor(maxBodySizeFor), maxBodySize(0) {}
 
 HttpRequestParser::HttpRequestParser(const std::function<size_t(const std::string&)>& maxBodySizeFor)
     : _maxBodySizeFor(maxBodySizeFor), _state(ReadingHeaders), maxBodySize(0)
-    , _contentLength(0), _chunkRemaining(0)
-{
-}
-
-// void HttpRequestParser::setMaxBodySize(size_t size)
-// {
-//     maxBodySize = size;
-// }
-
-// const HttpRequest& HttpRequestParser::currentRequest() const
-// {
-//     return _currentRequest;
-// }
+    , _contentLength(0), _chunkRemaining(0) {}
 
 static bool shouldKeepAlive(const HttpRequest& req);
 
@@ -81,12 +65,6 @@ HttpRequestParser::Result HttpRequestParser::feed(
 
                     return UriTooLong;
                 }
-
-                /*
-                 * Copy only the headers, then remove them from
-                 * the buffer. From this point, _buf contains
-                 * only body data or a pipelined next request.
-                 */
                 const std::string headerPart =
                     _buf.substr(0, headerEnd);
 
@@ -252,11 +230,6 @@ HttpRequestParser::Result HttpRequestParser::feed(
             if (_state == ReadingFixedBody)
                 return parseFixedBody(req);
 
-            /*
-             * ReadingChunkSize, ReadingChunkData,
-             * ReadingChunkDataCrlf and ReadingChunkTrailers
-             * are all handled by the incremental chunk parser.
-             */
             return parseChunkedBody(req);
         }
     }
@@ -400,14 +373,6 @@ void HttpRequestParser::splitPathQuery(HttpRequest& req)
 	req.path         = req.path.substr(0, qmark);
 }
 
-// / Decode %XX percent-encoding back to the original byte.
-// e.g. "%20" -> " ", "%2B" -> "+"
-/* C++ language num formulário. O navegador monta essa URL:
-GET /search?q=C%2B%2B+language HTTP/1.1
-espaço  →  +
-+       →  %2B
-ã       →  %C3%A3
-/       →  %2F   (quando / é dado e não separador de path)*/
 static std::string percentDecode(const std::string& s)
 {
 	std::string out;
@@ -436,8 +401,6 @@ static std::string percentDecode(const std::string& s)
 	return out;
 }
 
-// Parse "key=value&key2=value2" into req.query_params.
-// Each key and value is percent-decoded.
 void HttpRequestParser::parseQueryString(HttpRequest& req)
 {
 	if (req.query_string.empty())
@@ -485,19 +448,11 @@ static bool shouldKeepAlive(const HttpRequest& req)
 {
     std::map<std::string, std::string>::const_iterator it =
         req.headers.find("connection");
-	// in case the header is NOT find:
-    if (it == req.headers.end()) // end means that element not find, so connection stays open
-        return true; //in this case is true becase en http/1.1 if don't exist a header connection it automatically means the connection should keep-alive
-
-    return HttpRequestParser::toLower(it->second) != "close";  // now it works because toLower is a public member now
+    if (it == req.headers.end())
+        return true;
+    return HttpRequestParser::toLower(it->second) != "close";
 }
 
-
-/* Note for function ShouldKeepAlive:
-Noor: So the ShouldKeepAlive functions searches in the header folder to the key "connection".
-Headers are during parsing always saved as a key in small letters (with the toLower(trim()) function in parseHeaders).
-So here in this function we searh for "conecction", this always works,
-even if the browser "Connection:code" sends with Capitals in it) */
 long HttpRequestParser::parseContentLength(
     const std::string& value
 ) const
@@ -648,11 +603,6 @@ HttpRequestParser::parseChunkedBody(
 {
     while (true)
     {
-        /*
-         * Waiting for:
-         *
-         * <hex-size>\r\n
-         */
         if (_state == ReadingChunkSize)
         {
             const size_t crlf =
@@ -660,10 +610,6 @@ HttpRequestParser::parseChunkedBody(
 
             if (crlf == std::string::npos)
             {
-                /*
-                 * Prevent an endless chunk-size line from
-                 * growing the buffer indefinitely.
-                 */
                 if (_buf.size() > MAX_HEADER_SIZE)
                 {
                     throw std::runtime_error(
@@ -681,12 +627,6 @@ HttpRequestParser::parseChunkedBody(
                 0,
                 crlf + 2
             );
-
-            /*
-             * Ignore optional chunk extensions:
-             *
-             * 1000;name=value\r\n
-             */
             const size_t semicolon =
                 sizeLine.find(';');
 
@@ -704,21 +644,12 @@ HttpRequestParser::parseChunkedBody(
             const long chunkSize =
                 parseChunkSize(sizeLine);
 
-            /*
-             * The zero chunk marks the end of the body.
-             * We still need to consume the final CRLF or
-             * optional trailer headers.
-             */
             if (chunkSize == 0)
             {
                 _state = ReadingChunkTrailers;
                 continue;
             }
 
-            /*
-             * Keep chunkSize as long during parsing.
-             * Compare before converting it to size_t.
-             */
             if (
                 _currentRequest.body.size()
                     > maxBodySize
@@ -744,11 +675,6 @@ HttpRequestParser::parseChunkedBody(
             _state = ReadingChunkData;
             continue;
         }
-
-        /*
-         * Consume only the currently available bytes
-         * belonging to this chunk.
-         */
         if (_state == ReadingChunkData)
         {
             if (_buf.empty())
@@ -781,9 +707,6 @@ HttpRequestParser::parseChunkedBody(
             continue;
         }
 
-        /*
-         * Every chunk data section must end with CRLF.
-         */
         if (_state == ReadingChunkDataCrlf)
         {
             if (_buf.size() < 2)
@@ -805,25 +728,11 @@ HttpRequestParser::parseChunkedBody(
             continue;
         }
 
-        /*
-         * After the zero chunk, the usual ending is:
-         *
-         * 0\r\n
-         * \r\n
-         *
-         * Trailer headers may also appear before the
-         * final empty line.
-         */
         if (_state == ReadingChunkTrailers)
         {
             if (_buf.size() < 2)
                 return NeedMore;
 
-            /*
-             * No trailer headers:
-             *
-             * the buffer starts directly with "\r\n".
-             */
             if (
                 _buf[0] == '\r'
                 && _buf[1] == '\n'
@@ -833,10 +742,6 @@ HttpRequestParser::parseChunkedBody(
                 return finishRequest(req);
             }
 
-            /*
-             * Trailer headers exist. Wait for their
-             * terminating empty line.
-             */
             const size_t trailerEnd =
                 _buf.find("\r\n\r\n");
 
@@ -880,10 +785,6 @@ HttpRequestParser::finishRequest(
             _currentRequest
         );
 
-    /*
-     * Copy the completed request to the caller before
-     * resetting the internal parser state.
-     */
     req = _currentRequest;
 
     resetRequestState();

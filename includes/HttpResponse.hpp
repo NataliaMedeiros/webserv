@@ -2,8 +2,6 @@
 #include <string>
 #include <map>
 
-// Structured HTTP/1.1 response.
-// Handler fills this object; ClientConnection serializes it with toRaw().
 struct HttpResponse
 {
     int status;

@@ -3,14 +3,6 @@
 #include <iostream>
 #include <vector>
 
-// main() is the entry point of the server.
-// Usage: ./webserv [config_file]
-// If no config file is given, defaults to configs/default.config
-//
-// Multi port update (6 july, by Noor):
-// ConfigParser::parse() returns a vector of ServerConfig, one per server block.
-// ServerManager now takes the full vector and creates one Listener per config,
-// all sharing the same poll() event loop.
 int main(int argc, char** argv)
 {
     std::string configPath = (argc >= 2) ? argv[1] : "configs/default.config";

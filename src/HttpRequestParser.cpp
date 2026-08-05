@@ -34,126 +34,6 @@ static bool shouldKeepAlive(const HttpRequest& req);
 
 static std::string percentDecode(const std::string& s);
 
-
-// HttpRequestParser::Result HttpRequestParser::feed(const std::string& chunk, HttpRequest& req)
-// {
-//     _buf += chunk;
-
-// 	// Guard 1: buffer size limit.
-// 	// A client sending endless headers without \r\n\r\n would grow _buf
-// 	// forever. Reject early once we exceed the hard ceiling.
-// 	// if (_buf.size() > MAX_BUFFER_SIZE)
-// 	// {
-// 	// 	// This check runs before findHeaderEnd(), so we are always still
-// 	// 	// reading the request line or headers here, never the body.
-// 	// 	// That means the URI or headers are too long, not the payload.
-// 	// 	_buf.clear();
-// 	// 	std::cerr << "URI_TOO_LONG 1\n";
-// 	// 	return UriTooLong;
-// 	// }
-
-// 	// // We need the full header section before we can do anything.
-// 	// if (findHeaderEnd(_buf) == std::string::npos)
-// 	// 	return NeedMore;
-// 	const size_t headerEnd = findHeaderEnd(_buf);
-
-// 	if (headerEnd == std::string::npos)
-// 	{
-// 		// Ainda estamos recebendo request line e headers.
-// 		if (_buf.size() > MAX_HEADER_SIZE)
-// 		{
-// 			_buf.clear();
-// 			std::cerr << "URI_TOO_LONG 1\n";
-// 			return UriTooLong;
-// 		}
-
-// 		return NeedMore;
-// 	}
-
-// 	// headerEnd points to the start of "\r\n\r\n".
-// // Subtract 4 so the delimiter is also included in the header size limit.
-// 	if (headerEnd > MAX_HEADER_SIZE - 4)
-// 	{
-// 		_buf.clear();
-// 		std::cerr << "URI_TOO_LONG 1\n";
-// 		return UriTooLong;
-// 	}
-
-// 	// Work on a fresh request object so that partial data from a
-// 	// previous NeedMore call never leaks into the final result.
-// 	HttpRequest tmp;
-// 	std::string headerPart, bodyPart;
-
-// 	splitHeaderBody(_buf, headerPart, bodyPart);
-
-// 	std::vector<std::string> lines = splitLines(headerPart);
-
-// 	if (lines.empty())
-// 	{
-// 		_buf.clear();
-// 		std::cerr << "BADREQUEST 2\n";
-// 		return BadRequest;
-// 	}
-
-// 	size_t bodyBytesConsumed = 0;
-
-// 	try
-// 	{
-// 		parseFirstLine(tmp, lines[0]);
-// 		if (!_maxBodySizeFor)
-// 		{
-// 			throw std::runtime_error(
-// 				"missing max body size resolver"
-// 			);
-// 		}
-
-// 		maxBodySize = _maxBodySizeFor(tmp.path);
-// 		parseHeaders(tmp, lines);
-// 		// REDUNDANT!! 14 juli, Noor deleted this part:
-// 		// std::map<std::string, std::string>::iterator cl =
-//     	// tmp.headers.find("content-length");
-
-// 		// if (cl != tmp.headers.end())
-// 		// {
-//     	// 	long length = std::atol(cl->second.c_str());
-//     	// 	if (length > static_cast<long>(maxBodySize))
-//     	// 	{
-//        	// 		 _buf.clear();
-//         // 		throw std::runtime_error("PAYLOAD_TOO_LARGE");
-//     	// 	}
-// 		// }
-// 		if (!parseBody(tmp, bodyPart, bodyBytesConsumed))
-// 			return NeedMore;
-// 	}
-// 	catch (const std::runtime_error& e)
-// 	{
-//     	std::cerr << "Exception: [" << e.what() << "]\n";
-
-// 		_buf.clear();
-
-//     	if (std::string(e.what()) == "PAYLOAD_TOO_LARGE")
-//         	return PayloadTooLarge;
-
-//     	std::cerr << "BADREQUEST 3\n";
-// 		return BadRequest;
-// 	}
-// 	std::map<std::string, std::string>::const_iterator hostIt = tmp.headers.find("host");
-// 	if (hostIt == tmp.headers.end() || trim(hostIt->second).empty())
-// 	{
-// 		_buf.clear();
-// 		std::cerr << "BADREQUEST 4\n";
-// 		return BadRequest;
-// 	}
-
-// 	tmp.keepAlive = shouldKeepAlive(tmp);
-// 	// Only write to the caller's req when the whole request is ready.
-// 	req = tmp;
-// 	// For now, clear everything after one request
-// 	// Later you can consume only the used bytes
-// 	_buf = _buf.substr(headerPart.size() + 4 + bodyBytesConsumed);
-// 	return Complete;
-// }
-
 HttpRequestParser::Result HttpRequestParser::feed(
     const std::string& chunk,
     HttpRequest& req
@@ -430,16 +310,6 @@ size_t HttpRequestParser::findHeaderEnd(const std::string& raw)
 	return raw.find("\r\n\r\n");
 }
 
-// void HttpRequestParser::splitHeaderBody(const std::string& raw, std::string& headerPart, std::string& bodyPart)
-// {
-// 	size_t pos = findHeaderEnd(raw);
-
-// 	if (pos == std::string::npos)
-// 		return;
-// 	headerPart = raw.substr(0, pos);
-// 	bodyPart = raw.substr(pos + 4);
-// }
-
 std::vector<std::string> HttpRequestParser::splitLines(const std::string& headerPart)
 {
 	std::vector<std::string> lines; //Create a container to store each line separately
@@ -484,27 +354,6 @@ void HttpRequestParser::parseFirstLine(HttpRequest& request, const std::string& 
 }
 
 // ===== Parse headers =====
-// //Entender melhor e checar se é a melhor maneira
-// void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std::string>& lines)
-// {
-// 	for (size_t i = 1; i < lines.size(); i++) //headers starts at line 1
-// 	{
-// 		size_t sep = lines[i].find(":"); //: is the separator
-// 		if (sep == std::string::npos)
-// 			throw std::runtime_error("malformed header line");
-// 		//	continue; //it will skip the line
-
-// 		std::string key = toLower(trim(lines[i].substr(0, sep))); //before the separator
-// 		std::string value = trim(lines[i].substr(sep + 1)); //after the separator
-// 		// Two different values would let an attacker confuse the server about
-// 		// where one request ends and the next begins.
-// 		if (key.empty())
-// 			continue;
-// 		if (key == "content-length" && request.headers.count(key) > 0)
-// 			throw std::runtime_error("duplicate Content-Length header");
-// 		request.headers[key] = value; //add or update the key value
-// 	}
-// }
 void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std::string>& lines)
 {
 	for (size_t i = 1; i < lines.size(); i++) //headers starts at line 1
@@ -530,59 +379,6 @@ void HttpRequestParser::parseHeaders(HttpRequest& request, const std::vector<std
 		request.headers[key] = value; //add or update the key value
 	}
 }
-
-// bool HttpRequestParser::parseBody(HttpRequest& req,
-//                                   const std::string& bodyPart,
-//                                   size_t& bodyBytesConsumed)
-// {
-//     std::map<std::string, std::string>::const_iterator teIt =
-//         req.headers.find("transfer-encoding");
-
-//     if (teIt != req.headers.end() && toLower(teIt->second) == "chunked")
-//     {
-//         size_t chunkedConsumed = 0;
-//         if (!parseChunkedBody(req, bodyPart, chunkedConsumed))
-//             return false;
-//         bodyBytesConsumed = chunkedConsumed;
-//         parseQueryString(req);
-//         return true;
-//     }
-
-//     std::map<std::string, std::string>::const_iterator clIt =
-//         req.headers.find("content-length");
-
-//     if (clIt != req.headers.end())
-//     {
-//         const std::string& clStr = clIt->second;
-// 		if (clStr.empty())
-// 			throw std::runtime_error("empty Content-Length");
-//         for (size_t i = 0; i < clStr.size(); i++)
-//             if (!std::isdigit(static_cast<unsigned char>(clStr[i])))
-//                 throw std::runtime_error("non-digit in Content-Length");
-
-//         std::istringstream iss(clStr);
-//         long length;
-//         iss >> length;
-//         if (iss.fail() || length < 0)
-//             throw std::runtime_error("invalid Content-Length value");
-// 		if (length > static_cast<long>(maxBodySize))
-//     		throw std::runtime_error("PAYLOAD_TOO_LARGE");
-//         if (static_cast<long>(bodyPart.size()) < length)
-//             return false;
-//         req.body = bodyPart.substr(0, static_cast<size_t>(length));
-//         bodyBytesConsumed = static_cast<size_t>(length); // só os bytes do body
-//         parseQueryString(req);
-//         return true;
-//     }
-
-//     if (req.method == "POST")
-//         throw std::runtime_error("POST without Content-Length or Transfer-Encoding");
-
-//     req.body          = "";
-//     bodyBytesConsumed = 0;
-//     parseQueryString(req);
-//     return true;
-// }
 
 bool HttpRequestParser::isValidMethod(const std::string& method)
 {
@@ -683,89 +479,6 @@ void HttpRequestParser::parseQueryString(HttpRequest& req)
 		start = amp + 1;
 	}
 }
-
-// ============================================================
-//  Body parsing
-// ============================================================
-
-// Un-chunk a chunked body.
-//
-// Chunked format (each chunk):
-//   <hex-size>\r\n
-//   <data of that many bytes>\r\n
-// Terminated by:
-//   0\r\n
-//   \r\n
-//
-// Returns false if more data is needed.
-// Throws on malformed chunk encoding.
-// bool HttpRequestParser::parseChunkedBody(HttpRequest& req,
-// 										const std::string& bodyPart,
-// 										size_t& bytesConsumed)
-// {
-//     std::string decoded;
-//     size_t pos = 0;
-
-//     while (pos < bodyPart.size())
-//     {
-//         size_t crlf = bodyPart.find("\r\n", pos);
-//         if (crlf == std::string::npos)
-//             return false;
-
-//         std::string sizeLine = bodyPart.substr(pos, crlf - pos);
-//         size_t semi = sizeLine.find(';');
-//         if (semi != std::string::npos)
-//             sizeLine = sizeLine.substr(0, semi);
-
-//         sizeLine = trim(sizeLine);
-//         if (sizeLine.empty())
-//             throw std::runtime_error("empty chunk size line");
-
-//         for (size_t i = 0; i < sizeLine.size(); i++)
-//             if (!std::isxdigit(static_cast<unsigned char>(sizeLine[i])))
-//                 throw std::runtime_error("non-hex character in chunk size");
-
-//         long chunkSize = std::strtol(sizeLine.c_str(), NULL, 16);
-//         if (chunkSize < 0)
-//             throw std::runtime_error("negative chunk size");
-
-//         pos = crlf + 2;
-
-//         if (chunkSize == 0)
-//         {
-//             if (pos + 2 > bodyPart.size())
-//                 return false;
-//             req.body     = decoded;
-//             bytesConsumed = pos + 2; // aponta para depois do \r\n final
-//             return true;
-//         }
-
-//         size_t dataEnd = pos + static_cast<size_t>(chunkSize);
-//         if (dataEnd + 2 > bodyPart.size())
-//             return false;
-
-//         if (bodyPart[dataEnd] != '\r' || bodyPart[dataEnd + 1] != '\n')
-//             throw std::runtime_error("missing CRLF after chunk data");
-
-//         //decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
-// 		// if (decoded.size() + static_cast<size_t>(chunkSize) > maxBodySize)
-//     	// 	throw std::runtime_error("PAYLOAD_TOO_LARGE");
-
-// 		const size_t currentChunkSize = static_cast<size_t>(chunkSize);
-
-// 		if (decoded.size() > maxBodySize || currentChunkSize > maxBodySize - decoded.size())
-// 		{
-// 			throw std::runtime_error("PAYLOAD_TOO_LARGE");
-// 		}
-
-// 		decoded.append(bodyPart, pos, currentChunkSize);
-
-// // decoded += bodyPart.substr(pos, static_cast<size_t>(chunkSize));
-//         pos = dataEnd + 2;
-//     }
-
-//     return false;
-// }
 
 // The browser by default keeps the connection OPEN, until it finds
 static bool shouldKeepAlive(const HttpRequest& req)

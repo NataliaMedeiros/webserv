@@ -1,8 +1,8 @@
+#pragma once
 #include <string>
 #include <vector>
 #include <map>
 
-// ── Config structs (will be replaced by Person 2's parser output) ── //Discuss in Meeting
 struct LocationConfig
 {
     std::string              path;
@@ -16,15 +16,8 @@ struct LocationConfig
     int                      redirectCode;
     std::string              redirectUrl;
     std::map<int, std::string> errorPages;
-    // size_t                      maxBodySize = 1024 * 1024; // default 1MB
     size_t maxBodySize;
     bool   hasMaxBodySize;
-    
-    // LocationConfig()
-    //     : autoindex(false)
-    //     , redirectCode(0)
-    //     , maxBodySize(1024 * 1024)
-    // {}
 
     LocationConfig()
         : autoindex(false)

@@ -22,13 +22,6 @@ struct RouteDecision
     size_t maxBodySize;
 
 
-    // RouteDecision()//setting default values for the fields in case they are not set by the configuration file
-    //     : root("./www")
-    //     , index("index.html")
-    //     , autoindex(false)
-    //     , redirectCode(0)
-    // {}
-
     RouteDecision()
         : root("./www")
         , index("index.html")

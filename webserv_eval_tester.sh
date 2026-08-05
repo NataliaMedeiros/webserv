@@ -1,8 +1,12 @@
 #!/bin/bash
 
 # ==========================================================
-# 42 Webserv Evaluation Tester
+# 42 Webserv Evaluation Tester (FIXED)
 # Automated checks + Siege stress tests
+#
+# Fixed to match this project's actual configuration and
+# file layout. Must be run against: configs/default_with_error.config
+# See webserv_eval_tester_instructions.md for setup steps.
 # ==========================================================
 
 HOST="localhost"
@@ -46,7 +50,7 @@ check()
 
 
 echo "========================================="
-echo "       42 Webserv Evaluation Tester"
+echo "  42 Webserv Evaluation Tester (fixed)"
 echo "========================================="
 
 
@@ -88,9 +92,14 @@ check \
 "200"
 
 
+# FIXED: DELETE now targets a file we create fresh in www/ root,
+# instead of a non-existent /test.txt (root-level test.txt never existed,
+# real fixture files live under www/files/).
+echo "42 Webserv delete test" > www/delete_me.txt
+
 check \
 "DELETE request" \
-"curl -i -s -X DELETE $URL/test.txt" \
+"curl -i -s -X DELETE $URL/delete_me.txt" \
 "204"
 
 
@@ -111,24 +120,15 @@ check \
 echo
 echo "Testing client body limit"
 
-BIG_BODY=$(python3 - <<EOF
-print("A"*1000000)
-EOF
-)
+# FIXED: write the big body to a temp file and use --data-binary @file
+# instead of passing a 1MB string as a shell argument, which previously
+# hit the OS "Argument list too long" limit and never reached curl at all.
+python3 -c "print('A' * 15000000, end='')" > /tmp/eval_big_body.txt
 
-RESULT=$(curl -i -s \
--X POST \
--H "Content-Type: plain/text" \
---data "$BIG_BODY" \
-$URL)
-
-if echo "$RESULT" | grep -q "413"
-then
-    echo -e "${GREEN}PASS - Body limit enforced${RESET}"
-else
-    echo -e "${YELLOW}Check manually - depends on configuration${RESET}"
-fi
-
+check \
+"Body over the /upload limit (10M) returns 413" \
+"curl -i -s -X POST --data-binary @/tmp/eval_big_body.txt $URL/upload" \
+"413"
 
 
 # ----------------------------------------------------------
@@ -137,20 +137,28 @@ fi
 
 echo "Upload test file"
 
-echo "42 Webserv upload test" > test_upload.txt
+echo "42 Webserv upload test" > /tmp/eval_test_upload.txt
 
 
+# FIXED: use a real multipart/form-data upload (-F), matching how a
+# browser <input type="file"> actually submits a file. The old test used
+# --data-binary (a raw, non-multipart body), which this server correctly
+# rejects with 400 "Malformed multipart body", that was never a server bug.
+# FIXED: expect 201 Created (the correct status for a newly created
+# resource), not 200 OK.
 check \
-"Upload file" \
-"curl -i -s -X POST --data-binary @test_upload.txt $URL/upload" \
-"200"
+"Upload file (multipart/form-data)" \
+"curl -i -s -X POST -F 'file=@/tmp/eval_test_upload.txt' $URL/upload" \
+"201"
 
 
+# FIXED: uploaded files are served back from /uploads/ (plural, GET+DELETE
+# allowed), not /upload/ (singular, POST-only by design, used only for
+# submitting new files). This is a deliberate separation, not a bug.
 check \
 "Download uploaded file" \
-"curl -i -s $URL/upload/test_upload.txt" \
+"curl -i -s $URL/uploads/eval_test_upload.txt" \
 "42"
-
 
 
 # ----------------------------------------------------------
@@ -163,7 +171,6 @@ check \
 "200"
 
 
-
 # ----------------------------------------------------------
 # REDIRECT
 # ----------------------------------------------------------
@@ -171,15 +178,12 @@ check \
 echo
 echo "Redirect test"
 
-curl -i -s $URL/redirect | grep Location
-
-if [ $? -eq 0 ]
-then
-    echo -e "${GREEN}Redirect detected${RESET}"
-else
-    echo -e "${YELLOW}No redirect found${RESET}"
-fi
-
+# FIXED: /redirect was never a configured route. The actual redirect
+# in this config is /old -> /new (301).
+check \
+"Redirect (/old -> /new)" \
+"curl -i -s $URL/old" \
+"301"
 
 
 # ----------------------------------------------------------
@@ -189,17 +193,18 @@ fi
 echo
 echo "CGI TESTS"
 
+# FIXED: the real CGI scripts live under /cgi (e.g. hello.py), not under
+# a /cgi-bin/test.py path that never existed in this project.
 check \
 "CGI GET" \
-"curl -i -s $URL/cgi-bin/test.py" \
+"curl -i -s $URL/cgi/hello.py" \
 "200"
 
 
 check \
 "CGI POST" \
-"curl -i -s -X POST -d 'hello=world' $URL/cgi-bin/test.py" \
+"curl -i -s -X POST -d 'hello=world' $URL/cgi/hello.py" \
 "200"
-
 
 
 # ----------------------------------------------------------
@@ -218,6 +223,9 @@ else
     echo -e "${RED}Port not found${RESET}"
 fi
 
+
+# cleanup temp fixture created during this run
+rm -f www/delete_me.txt /tmp/eval_big_body.txt /tmp/eval_test_upload.txt
 
 
 # ----------------------------------------------------------
@@ -242,7 +250,6 @@ siege \
 -d 1 \
 -t 1M \
 $URL
-
 
 
 echo
@@ -273,7 +280,6 @@ echo -e "${YELLOW}Siege not installed${RESET}"
 fi
 
 
-
 # ----------------------------------------------------------
 # SUMMARY
 # ----------------------------------------------------------
@@ -300,6 +306,3 @@ echo "- Directory listing behaviour"
 
 echo
 echo "Done."
-
-
-

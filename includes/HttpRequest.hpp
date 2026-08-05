@@ -9,14 +9,14 @@
 class HttpRequest
 {
 	public:
-		std::string method; //Take the first word from the request
+		std::string method; // Take the first word from the request
 		std::string path;
 		std::string query_string;
 		std::map<std::string, std::string> query_params;
 		std::string version;
 		std::map<std::string,std::string> headers;
 		std::string body;
-		bool keepAlive = true; // Friday 19 june: Noor added "true" as default value.
+		bool keepAlive = true; // True is default value.
 
 };
 
@@ -34,7 +34,7 @@ The method takes the first word from the request:
 	POST
 
 The path takes the URL path the client wants:
-	/login
+	/submit
 
 The version takes the HTTP version used by the client:
 	HTTP/1.1

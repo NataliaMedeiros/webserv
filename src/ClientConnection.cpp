@@ -1,7 +1,10 @@
 #include "ClientConnection.hpp"
+#include <climits>
 #include "Net.hpp"
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sstream>
+#include <signal.h>
 #include <cerrno>
 #include <iostream>
 
@@ -17,7 +20,6 @@
 //   Writing -> Reading  : response fully sent, keep-alive is active
 //   Writing -> Closing  : response fully sent, connection: close
 //   Reading -> Closing  : browser disconnected or sent a bad request
-
 ClientConnection::ClientConnection(int fd, const ServerConfig& config)
     : _fd(fd), _router(config),
     _parser([this](const std::string& path) -> size_t{return _router.maxBodySizeFor(path);})
@@ -60,18 +62,15 @@ void ClientConnection::onReadable()
         // recv() reads available bytes from the socket into buf.
         // Returns: >0 = bytes read, 0 = browser closed connection, -1 = error or nothing left
         ssize_t bytesRead = ::recv(fd(), buf, sizeof(buf), 0);
-
         if (bytesRead > 0)
         {
             // Feed the received bytes to the parser.
             // The parser may need multiple calls before it has a complete request
             // (TCP can split one HTTP request across multiple recv() calls).
             HttpRequest req;
-            // before it was: RequestParser
             HttpRequestParser::Result result = _parser.feed(
                 std::string(buf, static_cast<size_t>(bytesRead)), req
             );
-
             if (result == HttpRequestParser::Result::PayloadTooLarge)
             {
                 std::cout << "Sending status: " << HttpResponse::error(413, "Payload Too Large").status << "\n";
@@ -86,7 +85,7 @@ void ClientConnection::onReadable()
                 _state = State::Closing;
                 return;
             }
-            if (result == HttpRequestParser::Result::BadRequest) // before it was RequestParser
+            if (result == HttpRequestParser::Result::BadRequest)
             {
                 // The browser sent something we cannot understand - send 400 and close
                 std::cout << "  Bad request on fd=" << fd() << "\n";
@@ -94,22 +93,16 @@ void ClientConnection::onReadable()
                 _state = State::Closing;
                 return;
             }
-
             if (result == HttpRequestParser::Result::Complete)
             {
                 // We have a full, valid HTTP request - handle it
                 std::cout << "  Request complete: " << req.method << " " << req.path << "\n";
                 handleRequest(req);
-
-                // After sending the response, keep the connection open if the browser wants to
-                // _state = req.keepAlive ? State::Reading : State::Closing;
                 return;
             }
-
             // Result::NeedMore - request is not complete yet, keep reading
             continue;
         }
-
         if (bytesRead == 0)
         {
             // Browser closed the connection cleanly
@@ -117,12 +110,9 @@ void ClientConnection::onReadable()
             return;
         }
 
-        // bytesRead < 0
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return; // No more data right now - poll() will tell us when there is more
-
-        // Any other error - close the connection
-        _state = State::Closing;
+        // bytesRead < 0: nothing left to read right now. We don't inspect errno
+        // (poll() already told us this fd was ready; genuine fd errors/hangups
+        // are caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop).
         return;
     }
 }
@@ -144,11 +134,9 @@ void ClientConnection::onWritable()
             continue; // Try to send more
         }
 
-        if (bytesSent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
-            return; // Socket buffer is full - poll() will call us again when ready
-
-        // Any other error - close the connection
-        _state = State::Closing;
+        // bytesSent < 0: can't send right now. We don't inspect errno; poll()
+        // already told us this fd was ready, and real fd errors/hangups are
+        // caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop.
         return;
     }
     // Output buffer is now empty - response has been fully sent.
@@ -169,16 +157,7 @@ void ClientConnection::queueResponse(const HttpResponse& resp, bool keepAlive)
     else
         _state = State::Writing;
 }
-// OLD! Changed for the one below on jul 16 (Noor)
-// void ClientConnection::handleRequest(const HttpRequest& req)
-// {
-//     RouteDecision decision = _router.route(req);
 
-//     Handler handler;
-//     HttpResponse resp = handler.handle(decision, req);
-
-//     queueResponse(resp, req.keepAlive);
-// }
 void ClientConnection::handleRequest(const HttpRequest& req)
 {
     RouteDecision decision = _router.route(req);
@@ -206,35 +185,6 @@ void ClientConnection::handleRequest(const HttpRequest& req)
 
     queueResponse(resp, req.keepAlive);
 }
-
-//OLD!! changed for the one above on 19 May
-// // handleRequest() is the "controller" - it decides what to do with a completed request.
-// // It asks the Router which handler to use, then calls that handler to build the response.
-//
-// void ClientConnection::handleRequest(const HttpRequest& req)
-// {
-//     // Ask the Router: given this request, what should we do?
-//     // (later: Router will use the config file to match location blocks)
-//     RouteDecision decision = _router.route(req);
-
-//     // Only allow the three methods the subject requires
-//     if (req.method != "GET" && req.method != "POST" && req.method != "DELETE")
-//     {
-//         queueResponse(HttpResponse::methodNotAllowed(), req.keepAlive);
-//         return;
-//     }
-
-//     // Pick the right handler based on the routing decision
-//     HttpResponse resp;
-//     if (decision.isCgi)
-//         resp = Handlers::handleCgi(req, decision);         // Run a CGI script (Phase 6)
-//     else if (req.method == "POST" && decision.allowUpload)
-//         resp = Handlers::handleUpload(req, decision);      // Handle file upload (Phase 5)
-//     else
-//         resp = Handlers::serveStatic(req, decision);       // Serve a file from disk (Phase 3)
-
-//     queueResponse(resp, req.keepAlive);
-// }
 
 // startCgi() forks a child process to run a CGI script.
 // The child runs the script via execve(). The parent keeps the
@@ -289,10 +239,34 @@ void ClientConnection::startCgi(const std::string& executable,
         ::close(inPipe[0]);
         ::close(outPipe[1]);
 
-        // Build the argv array for execve()
+        // Resolve the executable to an absolute path BEFORE
+        // changing directory. If "executable" is relative (e.g. "./cgi_tester")
+        // it is relative to the server's original working directory, chdir'ing
+        // first would break it (execve would look for it inside the script's
+        // directory instead). realpath() must run before chdir().
+        char resolvedExecutable[PATH_MAX];
+        std::string executableToRun = executable;
+        if (::realpath(executable.c_str(), resolvedExecutable) != nullptr)
+            executableToRun = resolvedExecutable;
+        // chdir into the script's own directory so relative file access
+        // from within the CGI script works correctly.
+        // Subject requirement: "The CGI should be run in the correct
+        // directory for relative path file access."
+        std::string scriptDir = ".";
+        std::string scriptFile = scriptPath;
+        size_t lastSlash = scriptPath.find_last_of('/');
+        if (lastSlash != std::string::npos)
+        {
+            scriptDir = scriptPath.substr(0, lastSlash);
+            scriptFile = scriptPath.substr(lastSlash + 1);
+        }
+        if (::chdir(scriptDir.c_str()) != 0)
+            ::exit(1);
+        // Build the argv array for execve().
+        // Use just the filename now that we've chdir'd into its directory.
         std::vector<char*> argv;
-        argv.push_back(const_cast<char*>(executable.c_str()));
-        argv.push_back(const_cast<char*>(scriptPath.c_str()));
+        argv.push_back(const_cast<char*>(executableToRun.c_str()));
+        argv.push_back(const_cast<char*>(scriptFile.c_str()));
         argv.push_back(nullptr);
 
         // Build the envp array for execve()
@@ -300,13 +274,10 @@ void ClientConnection::startCgi(const std::string& executable,
         for (const std::string& e : env)
             envp.push_back(const_cast<char*>(e.c_str()));
         envp.push_back(nullptr);
-
-        ::execve(executable.c_str(), argv.data(), envp.data());
-
+        ::execve(executableToRun.c_str(), argv.data(), envp.data());
         // If execve() returns, something went wrong
         ::exit(1);
     }
-
     // PARENT PROCESS
     ::close(outPipe[1]); // we don't write to the CGI's stdout
     ::close(inPipe[0]);  // we don't read from the CGI's stdin
@@ -316,7 +287,7 @@ void ClientConnection::startCgi(const std::string& executable,
     _cgiBody = body;
     _cgiBodyWritten = 0;
 
-    // NEW (16 july, by Noor): pipes are blocking by default. Without this,
+    // Pipes are blocking by default. Without this,
     // write()/read() here would freeze the whole event loop, even though
     // poll() told us the fd was ready, because a single write() call can
     // still block until the pipe has room for ALL the bytes we ask for.
@@ -331,7 +302,9 @@ void ClientConnection::startCgi(const std::string& executable,
         ::close(_cgiStdinFd);
         _cgiStdinFd = -1;
     }
-
+    // Record when this CGI process started, so EventLoop
+    // can later detect if it has been running too long.
+    _cgiStartTime = ::time(nullptr);
     _state = State::CGI;
 }
 
@@ -370,14 +343,52 @@ void ClientConnection::onCgiWritable()
     }
         return;
     }
+    // written < 0: pipe buffer isn't ready right now. We don't inspect errno;
+    // poll() already told us this fd was ready, and real fd errors/hangups
+    // are caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop.
+    return;
+}
 
-    if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
-        return; // pipe buffer is full right now, poll() will call us again
+// NEW (Noor): checks whether the currently running CGI script has
+// been running longer than CGI_TIMEOUT_SECONDS. EventLoop calls this
+// periodically for every connection currently in the CGI state.
+bool ClientConnection::cgiTimedOut() const
+{
+    if (_state != State::CGI || _cgiPid == -1)
+        return false;
 
-    // Any other error: stop trying, close the pipe so the CGI at least
-    // gets EOF instead of hanging forever waiting for more input.
-    ::close(_cgiStdinFd);
-    _cgiStdinFd = -1;
+    time_t now = ::time(nullptr);
+    return (now - _cgiStartTime) >= CGI_TIMEOUT_SECONDS;
+}
+
+// NEW (Noor): kills a hung CGI child, reaps it, closes both pipes,
+// and queues a 504 Gateway Timeout response for the client.
+void ClientConnection::killCgi()
+{
+    if (_cgiPid != -1)
+    {
+        ::kill(_cgiPid, SIGKILL);
+        ::waitpid(_cgiPid, nullptr, 0); // blocking wait is fine here,
+                                        // the child is already dying
+        _cgiPid = -1;
+    }
+
+    if (_cgiFd != -1)
+    {
+        ::close(_cgiFd);
+        _cgiFd = -1;
+    }
+
+    if (_cgiStdinFd != -1)
+    {
+        ::close(_cgiStdinFd);
+        _cgiStdinFd = -1;
+    }
+
+    _cgiOutput.clear();
+    _cgiBody.clear();
+
+    queueResponse(HttpResponse::text(504, "Gateway Timeout"), false);
 }
 
 // onCgiReadable() is called by EventLoop when the CGI pipe has data
@@ -391,47 +402,35 @@ void ClientConnection::onCgiReadable()
         _cgiOutput += std::string(buf, static_cast<size_t>(bytesRead));
         return; // More data might come, wait for next poll() call
     }
-
-    // NEW (16 july, by Noor): _cgiFd is non-blocking now, so read()
-    // returns -1/EAGAIN when the script simply has no output ready yet.
-    // That is NOT the same as the pipe being closed, without this check
-    // we were finalising the response too early on a large/slow script.
-    if (bytesRead < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
-        return; // No data right now, poll() will call us again later
+    if (bytesRead < 0)
+        return; // Nothing to read right now; we don't inspect errno, poll()
+                // will call us again. Genuine pipe errors surface as EOF
+                // (bytesRead == 0) once the CGI process exits.
 
     // bytesRead == 0 means the pipe closed, script is done
     ::close(_cgiFd);
     _cgiFd = -1;
 
-// FIXED (16 july, by Noor): check the child's exit status, exactly
-// like Handler's old blocking handleCgi() did, so a crashed/failed
-// script (e.g. python3 failing to open a missing file) returns 502
-// instead of silently 200.
-int status = 0;
-bool cgiFailed = false;
+    int status = 0;
+    bool cgiFailed = false;
 
-if (_cgiPid != -1)
-{
-    ::waitpid(_cgiPid, &status, 0);
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-        cgiFailed = true;
-    _cgiPid = -1;
-}
+    if (_cgiPid != -1)
+    {
+        ::waitpid(_cgiPid, &status, 0);
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+            cgiFailed = true;
+        _cgiPid = -1;
+    }
 
-if (cgiFailed)
-{
-    queueResponse(HttpResponse::text(502, "Bad Gateway"), false);
-    _cgiOutput.clear();
-    return;
-}
-// FIXED (16 july, by Noor): split off the CGI header block
-    // (Status, Content-Type, etc.) from the actual body, exactly
-    // like Handler::handleCgi() already does for the blocking path.
-    // Without this, the CGI's own headers were leaking into the
-    // HTTP response body.
+    if (cgiFailed)
+    {
+        queueResponse(HttpResponse::text(502, "Bad Gateway"), false);
+        _cgiOutput.clear();
+        return;
+    }
+
     size_t sep = _cgiOutput.find("\r\n\r\n");
     size_t offset = 4;
-
     if (sep == std::string::npos)
     {
         sep = _cgiOutput.find("\n\n");
@@ -442,12 +441,139 @@ if (cgiFailed)
     resp.status = 200;
     resp.reason = "OK";
 
+    // Honor a CGI-provided "Status:" header line, if present.
+    if (sep != std::string::npos)
+    {
+        size_t statusPos = _cgiOutput.find("Status:");
+        if (statusPos != std::string::npos && statusPos < sep)
+        {
+            std::istringstream statusStream(_cgiOutput.substr(statusPos + 7));
+            statusStream >> resp.status;
+            std::getline(statusStream, resp.reason);
+        }
+    }
+
     if (sep != std::string::npos)
         resp.setBody(_cgiOutput.substr(sep + offset), "text/html; charset=utf-8");
     else
         resp.setBody(_cgiOutput, "text/html; charset=utf-8");
 
     _cgiOutput.clear();
-
     queueResponse(resp, false);
 }
+
+
+
+// // onCgiReadable() is called by EventLoop when the CGI pipe has data
+// // We accumulate the output and build a response when the pipe closes.
+// void ClientConnection::onCgiReadable()
+// {
+//     char buf[4096];
+//     ssize_t bytesRead = ::read(_cgiFd, buf, sizeof(buf));
+//     if (bytesRead > 0)
+//     {
+//         _cgiOutput += std::string(buf, static_cast<size_t>(bytesRead));
+//         return; // More data might come, wait for next poll() call
+//     }
+//     if (bytesRead < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+//         return; // No data right now, poll() will call us again later
+
+//     // bytesRead == 0 means the pipe closed, script is done
+//     ::close(_cgiFd);
+//     _cgiFd = -1;
+
+// int status = 0;
+// bool cgiFailed = false;
+
+// if (_cgiPid != -1)
+// {
+//     ::waitpid(_cgiPid, &status, 0);
+//     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+//         cgiFailed = true;
+//     _cgiPid = -1;
+// }
+
+// if (cgiFailed)
+// {
+//     queueResponse(HttpResponse::text(502, "Bad Gateway"), false);
+//     _cgiOutput.clear();
+//     return;
+// }
+// //     size_t sep = _cgiOutput.find("\r\n\r\n");
+// //     size_t offset = 4;
+
+// //     if (sep == std::string::npos)
+// //     {
+// //         sep = _cgiOutput.find("\n\n");
+// //         offset = 2;
+// //     }
+
+// //     HttpResponse resp;
+// //     resp.status = 200;
+// //     resp.reason = "OK";
+
+// //     if (sep != std::string::npos)
+// //         resp.setBody(_cgiOutput.substr(sep + offset), "text/html; charset=utf-8");
+// //     else
+// //         resp.setBody(_cgiOutput, "text/html; charset=utf-8");
+
+// //     _cgiOutput.clear();
+
+// //     queueResponse(resp, false);
+// // }
+// size_t sep = _cgiOutput.find("\r\n\r\n");
+//     size_t offset = 4;
+//     if (sep == std::string::npos)
+//     {
+//         sep = _cgiOutput.find("\n\n");
+//         offset = 2;
+//     }
+
+//     HttpResponse resp;
+//     resp.status = 200;
+//     resp.reason = "OK";
+
+//     // FIXED (Noor): honor a CGI-provided "Status:" header line, if present,
+//     // instead of always hardcoding 200. Standard CGI scripts can override
+//     // the response status this way (e.g. "Status: 404 Not Found").
+//     if (sep != std::string::npos)
+//     {
+//         std::string headerPart = _cgiOutput.substr(0, sep);
+//         size_t statusPos = headerPart.find("Status:");
+//         if (statusPos != std::string::npos)
+//         {
+//             size_t lineEnd = headerPart.find('\n', statusPos);
+//             std::string statusLine = headerPart.substr(
+//                 statusPos + 7,
+//                 (lineEnd == std::string::npos ? headerPart.size() : lineEnd) - (statusPos + 7)
+//             );
+//             // trim leading/trailing whitespace and any trailing \r
+//             size_t start = statusLine.find_first_not_of(" \t");
+//             size_t end = statusLine.find_last_not_of(" \t\r");
+//             if (start != std::string::npos)
+//                 statusLine = statusLine.substr(start, end - start + 1);
+
+//             size_t spacePos = statusLine.find(' ');
+//             if (spacePos != std::string::npos)
+//             {
+//                 try
+//                 {
+//                     resp.status = std::stoi(statusLine.substr(0, spacePos));
+//                     resp.reason = statusLine.substr(spacePos + 1);
+//                 }
+//                 catch (...)
+//                 {
+//                     // malformed status line, keep the 200 default
+//                 }
+//             }
+//         }
+//     }
+
+//     if (sep != std::string::npos)
+//         resp.setBody(_cgiOutput.substr(sep + offset), "text/html; charset=utf-8");
+//     else
+//         resp.setBody(_cgiOutput, "text/html; charset=utf-8");
+
+//     _cgiOutput.clear();
+//     queueResponse(resp, false);
+// }

@@ -203,6 +203,22 @@ void EventLoop::dispatchEvents()
         }
     }
 }
+// NEW (Noor): checks every active connection for a CGI script that has
+// been running too long. If so, kills the child process, cleans up its
+// pipes, and queues a 504 response, so the connection can be closed
+// normally instead of hanging forever.
+void EventLoop::checkCgiTimeouts()
+{
+    for (auto& pair : _store.all())
+    {
+        ClientConnection* conn = pair.second.get();
+        if (conn->cgiTimedOut())
+        {
+            std::cout << "[!] CGI timed out on fd=" << pair.first << "\n";
+            conn->killCgi();
+        }
+    }
+}
 
 // run() is the main server loop - it never returns while the server is alive.
 void EventLoop::run()
@@ -215,14 +231,21 @@ void EventLoop::run()
         rebuildPollFds();
 
         // Step 2: wait until at least one fd is ready
-        // -1 as timeout means "wait forever" - poll() blocks until something happens
-        int readyCount = ::poll(_pollFds.data(), _pollFds.size(), -1);
+        // NEW (Noor): 1000ms timeout instead of -1 (wait forever). This lets
+        // us wake up periodically even with no network activity, so we can
+        // check for a CGI script that has been running too long.
+        int readyCount = ::poll(_pollFds.data(), _pollFds.size(), 1000);
 
         // If poll() was interrupted (e.g. by a signal), just try again
         if (readyCount < 0)
             continue;
 
-        // Step 3: handle all ready fds
-        dispatchEvents();
+        // Step 3: handle all ready fds (only if something actually happened)
+        if (readyCount > 0)
+            dispatchEvents();
+
+        // NEW (Noor): check every connection for a hung CGI script,
+        // this runs every ~1 second regardless of network activity.
+        checkCgiTimeouts();
     }
 }

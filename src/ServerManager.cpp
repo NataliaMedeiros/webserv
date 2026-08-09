@@ -21,7 +21,7 @@ std::vector<Listener> ServerManager::buildListeners(const std::vector<ServerConf
     std::vector<Listener> listeners;
     for (const ServerConfig& config : configs)
     {
-        listeners.emplace_back(static_cast<uint16_t>(config.port));
+        listeners.emplace_back(static_cast<uint16_t>(config.port), config.host);  
         std::cout << "Starting Webserv on port " << config.port << "...\n";
         std::cout << "Open your browser at: http://localhost:" << config.port << "/\n";
     }

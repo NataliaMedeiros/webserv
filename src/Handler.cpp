@@ -505,7 +505,7 @@ std::vector<std::string> Handler::buildCgiEnv(const RouteDecision& rd,
     envStrings.push_back("SCRIPT_FILENAME=" + fullPath);
     envStrings.push_back("GATEWAY_INTERFACE=CGI/1.1");
     envStrings.push_back("SERVER_PROTOCOL=HTTP/1.1");
-    envStrings.push_back("QUERY_STRING=");
+    envStrings.push_back("QUERY_STRING=" + req.query_string); // FIXED (Noor): was hardcoded empty, req.query_string is already parsed and available
     envStrings.push_back("PATH_INFO=" + req.path);
 
     // NEW (16 july, by Noor): expose every request header to the CGI script
@@ -597,15 +597,15 @@ HttpResponse Handler::handleAutoindex(const std::string& dirPath,
          << "    </header>\n"
          << "    <ul class=\"file-list\">\n";
 
-    if (displayPath != "/")
-        html << "      <li>\n"
-             << "        <a class=\"file-row directory\" href=\"../\">\n"
-             << "          <span class=\"file-icon\">&larr;</span>\n"
-             << "          <span class=\"file-name\">"
-             << "Home"
-             << "</span>\n"
-             << "        </a>\n"
-             << "      </li>\n";
+    // if (displayPath != "/")
+    //     html << "      <li>\n"
+    //          << "        <a class=\"file-row directory\" href=\"../\">\n"
+    //          << "          <span class=\"file-icon\">&larr;</span>\n"
+    //          << "          <span class=\"file-name\">"
+    //          << "Home"
+    //          << "</span>\n"
+    //          << "        </a>\n"
+    //          << "      </li>\n";
 
     for (std::vector<std::string>::const_iterator it = entries.begin();
          it != entries.end(); ++it)

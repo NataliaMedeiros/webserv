@@ -70,27 +70,11 @@ static void parseListen(const std::string& value, ServerConfig& srv)
     if (srv.port < 1 || srv.port > 65535)
         throw std::runtime_error("port out of range: " + std::to_string(srv.port));
 }
+
 // ─────────────────────────────────────────────
 // parseSize()
 // Accepts plain bytes ("1000000") or suffixed ("10M", "500K")
 // ─────────────────────────────────────────────
-// static size_t parseSize(const std::string& value)
-// {
-//     if (value.empty())
-//         throw std::runtime_error("empty client_max_body_size value");
-
-//     char suffix = value.back();
-//     size_t multiplier = 1;
-//     std::string numPart = value;
-
-//     if (suffix == 'K' || suffix == 'k') { multiplier = 1024; numPart = value.substr(0, value.size() - 1); }
-//     else if (suffix == 'M' || suffix == 'm') { multiplier = 1024 * 1024; numPart = value.substr(0, value.size() - 1); }
-//     else if (suffix == 'G' || suffix == 'g') { multiplier = 1024 * 1024 * 1024; numPart = value.substr(0, value.size() - 1); }
-
-//     try { return static_cast<size_t>(std::stoul(numPart)) * multiplier; }
-//     catch (...) { throw std::runtime_error("invalid client_max_body_size: " + value); }
-// }
-
 static size_t parseSize(const std::string& value)
 {
     if (value.empty())
@@ -120,14 +104,12 @@ static size_t parseSize(const std::string& value)
         multiplier = 1024ULL * 1024ULL * 1024ULL;
         --numberLength;
     }
-
     if (numberLength == 0)
     {
         throw std::runtime_error(
             "invalid client_max_body_size: " + value
         );
     }
-
     const std::string numberPart =
         value.substr(0, numberLength);
 
@@ -142,7 +124,6 @@ static size_t parseSize(const std::string& value)
             );
         }
     }
-
     unsigned long long number = 0;
     size_t parsedCharacters = 0;
 
@@ -167,7 +148,6 @@ static size_t parseSize(const std::string& value)
             "invalid client_max_body_size: " + value
         );
     }
-
     const unsigned long long maxSize =
         static_cast<unsigned long long>(
             std::numeric_limits<size_t>::max()
@@ -179,7 +159,6 @@ static size_t parseSize(const std::string& value)
             "client_max_body_size is too large: " + value
         );
     }
-
     return static_cast<size_t>(
         number * multiplier
     );
@@ -209,7 +188,6 @@ LocationConfig ConfigParser::parseLocation(
             "expected location path"
         );
     }
-
     loc.path = tokens[i++];
 
     if (i >= tokens.size() || tokens[i] != "{")
@@ -218,9 +196,7 @@ LocationConfig ConfigParser::parseLocation(
             "expected { after location path"
         );
     }
-
     ++i; // consume '{'
-
     while (i < tokens.size() && tokens[i] != "}")
     {
         const std::string key = tokens[i++];
@@ -235,7 +211,6 @@ LocationConfig ConfigParser::parseLocation(
                     "root directive missing path"
                 );
             }
-
             loc.root = tokens[i++];
 
             if (i >= tokens.size() || tokens[i] != ";")
@@ -275,7 +250,6 @@ LocationConfig ConfigParser::parseLocation(
                     "autoindex directive missing value"
                 );
             }
-
             const std::string value = tokens[i++];
 
             if (value == "on"
@@ -518,18 +492,15 @@ LocationConfig ConfigParser::parseLocation(
                 "unknown directive in location: " + key
             );
         }
-
         // Every directive above leaves i pointing to ';'.
         ++i; // consume ';'
     }
-
     if (i >= tokens.size() || tokens[i] != "}")
     {
         throw std::runtime_error(
             "missing } for location"
         );
     }
-
     ++i; // consume '}'
 
     return loc;
@@ -611,11 +582,6 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after client_max_body_size");
         }
-        // else if (key == "location")
-        // {
-        //     srv.locations.push_back(parseLocation(tokens, i));
-        //     continue;
-        // }
         else
         {
             throw std::runtime_error("unknown directive in server: " + key);

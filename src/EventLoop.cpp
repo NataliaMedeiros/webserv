@@ -11,13 +11,10 @@
 // instead of waiting on one connection at a time, poll() watches ALL connections
 // simultaneously and only acts when something is actually ready.
 // 
-// Multi port update (6 july by Noor)
-// EventLoop now holds a vector of Listeners instead of just one.
-// _listenerConfigs works like our memory: it maps each listener fd to its ServerConfig.
-// We build it once in the constructor when we still know both the listener and its config.
-// Later, when a new client comes in, we only see an fd number.
-// Without this map we would no longer know which port it came from.
-// and which config to give the new client.
+// _listenerConfigs maps each listener fd to its ServerConfig. We build it
+// once in the constructor. Later, when a new client connects, we only see
+// an fd number, without this map we wouldn't know which port it came in
+// on, or which config to give the new client.
 EventLoop::EventLoop(std::vector<Listener>& listeners,
                     const std::vector<ServerConfig>& configs,
                     ConnectionStore& store)
@@ -58,9 +55,8 @@ void EventLoop::rebuildPollFds()
         clientEntry.revents = 0;
         _pollFds.push_back(clientEntry);
     }
-    // CGI update (7 july, by Noor)
-    // Also watch the pipe fd of any active CGI process, 
-    // so poll() tells us when script output is ready to read
+    // Also watch the pipe fd of any active CGI process, so poll()
+    // tells us when script output is ready to read.
     for (auto& pair : _store.all())
     {
         ClientConnection* conn = pair.second.get();
@@ -73,8 +69,8 @@ void EventLoop::rebuildPollFds()
             _pollFds.push_back(cgiEntry);
         }
     }
-    // NEW (16 july, by Noor): also watch the CGI stdin pipe for writability,
-    // so we can write the request body to the script without blocking.
+    // Also watch the CGI stdin pipe for writability, so we can write
+    // the request body to the script without blocking.
     for (auto& pair : _store.all())
     {
         ClientConnection* conn = pair.second.get();
@@ -102,7 +98,7 @@ void EventLoop::dispatchEvents()
 
         // Check if this fd belongs to one of our listeners (not a client).
         // We use _listenerConfigs as our memory to recognise listener fds.
-        if (_listenerConfigs.count(p.fd)) // NEW "is the fd in our map?"
+        if (_listenerConfigs.count(p.fd))
         {
             // Look up which config belongs to this listener fd
             const ServerConfig& config = _listenerConfigs.at(p.fd);
@@ -111,12 +107,12 @@ void EventLoop::dispatchEvents()
             Listener* activeListener = nullptr;
             for (auto& l : _listeners)
             {
-               if (l.fd() == p.fd)
-            {
-                activeListener = &l;
-                break;
+                if (l.fd() == p.fd)
+                {
+                    activeListener = &l;
+                    break;
+                }
             }
-             }
             if (!activeListener)
                 continue;
 
@@ -134,11 +130,7 @@ void EventLoop::dispatchEvents()
             }
             continue;
         }
-        // CGI update (7 july, by Noor)
-        // Check if this fd is a CGI pipe fd from one of our active connections.
-        // We use _listenerConfigs as our memory to recognise listener fds,
-        // so anything not in that map and not a client socket must be a CGI pipe.
-        // --- Client fd: something happened on an existing connection ---
+        // Check if this fd is a CGI output pipe from one of our connections.
         bool isCgiPipe = false;
         ClientConnection* cgiConn = nullptr;
         for (auto& pair : _store.all())
@@ -156,7 +148,7 @@ void EventLoop::dispatchEvents()
                 cgiConn->onCgiReadable();
             continue;
         }
-        // NEW (16 july, by Noor): check if this fd is a CGI stdin (write) pipe.
+        // Check if this fd is a CGI stdin (write) pipe.
         bool isCgiStdinPipe = false;
         ClientConnection* cgiStdinConn = nullptr;
         for (auto& pair : _store.all())
@@ -203,10 +195,10 @@ void EventLoop::dispatchEvents()
         }
     }
 }
-// NEW (Noor): checks every active connection for a CGI script that has
-// been running too long. If so, kills the child process, cleans up its
-// pipes, and queues a 504 response, so the connection can be closed
-// normally instead of hanging forever.
+
+// Checks every active connection for a CGI script that has been
+// running too long. If so, kills the child process, cleans up its
+// pipes, and queues a 504 response.
 void EventLoop::checkCgiTimeouts()
 {
     for (auto& pair : _store.all())
@@ -231,7 +223,7 @@ void EventLoop::run()
         rebuildPollFds();
 
         // Step 2: wait until at least one fd is ready
-        // NEW (Noor): 1000ms timeout instead of -1 (wait forever). This lets
+        // 1000ms timeout instead of -1 (wait forever). This lets
         // us wake up periodically even with no network activity, so we can
         // check for a CGI script that has been running too long.
         int readyCount = ::poll(_pollFds.data(), _pollFds.size(), 1000);
@@ -244,8 +236,8 @@ void EventLoop::run()
         if (readyCount > 0)
             dispatchEvents();
 
-        // NEW (Noor): check every connection for a hung CGI script,
-        // this runs every ~1 second regardless of network activity.
+        // Check every connection for a hung CGI script. 
+        // This runs every ~1 second regardless of network activity.
         checkCgiTimeouts();
     }
 }

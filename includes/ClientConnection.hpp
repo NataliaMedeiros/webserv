@@ -66,7 +66,7 @@ private:
   int _cgiFd = -1;
   std::string _cgiOutput;
 
-  // Tmeout for a hanging CGI script. If a script runs
+  // Timeout for a hanging CGI script. If a script runs
   // longer than CGI_TIMEOUT_SECONDS, we kill it and respond with 504.
   static const int CGI_TIMEOUT_SECONDS = 30;
   time_t _cgiStartTime = 0;

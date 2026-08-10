@@ -8,8 +8,7 @@
 // NOTE: Top-level orchestration.
 // Creates one Listener per server block in the config file.
 // Holds ConnectionStore and runs EventLoop.
-// Multi port update (6 july, by Noor): now takes a vector of ServerConfigs
-// instead of one, and creates one Listener per config.
+// Takes a vector of ServerConfigs, and creates one Listener per config.
 class ServerManager {
 public:
   explicit ServerManager(const std::vector<ServerConfig>& configs);

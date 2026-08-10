@@ -470,9 +470,6 @@ std::string Handler::buildPath(const RouteDecision& rd, const HttpRequest& req)
     if (!root.empty() && root[root.size() - 1] == '/')
         root.erase(root.size() - 1);
 
-    if (req.path == "/")
-        return root + "/" + rd.index;
-
     std::string remainder = req.path;
 
     if (!rd.locationPath.empty() && rd.locationPath != "/")

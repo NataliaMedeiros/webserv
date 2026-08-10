@@ -53,94 +53,95 @@ bool ClientConnection::shouldRemove() const
 
 // onReadable() is called by the EventLoop when poll() says this fd has data to read.
 // We read all available bytes and feed them to the parser.
+// void ClientConnection::onReadable()
 void ClientConnection::onReadable()
 {
     char buf[4096]; // Temporary buffer - 4KB is a typical chunk size
 
-    while (true)
+    // Exactly one recv() attempt per call. If there's more data, poll()
+    // will flag this fd as readable again and EventLoop will call us again,
+    // we never read in a loop without going back through poll() first.
+    ssize_t bytesRead = ::recv(fd(), buf, sizeof(buf), 0);
+
+    if (bytesRead > 0)
     {
-        // recv() reads available bytes from the socket into buf.
-        // Returns: >0 = bytes read, 0 = browser closed connection, -1 = error or nothing left
-        ssize_t bytesRead = ::recv(fd(), buf, sizeof(buf), 0);
-        if (bytesRead > 0)
+        // Feed the received bytes to the parser.
+        // The parser may need multiple calls before it has a complete request
+        // (TCP can split one HTTP request across multiple recv() calls,
+        // each one arriving through its own poll() cycle).
+        HttpRequest req;
+        HttpRequestParser::Result result = _parser.feed(
+            std::string(buf, static_cast<size_t>(bytesRead)), req
+        );
+        if (result == HttpRequestParser::Result::PayloadTooLarge)
         {
-            // Feed the received bytes to the parser.
-            // The parser may need multiple calls before it has a complete request
-            // (TCP can split one HTTP request across multiple recv() calls).
-            HttpRequest req;
-            HttpRequestParser::Result result = _parser.feed(
-                std::string(buf, static_cast<size_t>(bytesRead)), req
-            );
-            if (result == HttpRequestParser::Result::PayloadTooLarge)
-            {
-                std::cout << "Sending status: " << HttpResponse::error(413, "Payload Too Large").status << "\n";
-                queueResponse(HttpResponse::error(413, "Payload Too Large"), false);
-                _state = State::Closing;
-                return;
-            }
-            if (result == HttpRequestParser::Result::UriTooLong)
-            {
-                std::cout << "Sending status: " << HttpResponse::error(414, "URI Too Long").status << "\n";
-                queueResponse(HttpResponse::error(414, "URI Too Long"), false);
-                _state = State::Closing;
-                return;
-            }
-            if (result == HttpRequestParser::Result::BadRequest)
-            {
-                // The browser sent something we cannot understand - send 400 and close
-                std::cout << "  Bad request on fd=" << fd() << "\n";
-                queueResponse(HttpResponse::badRequest(), false);
-                _state = State::Closing;
-                return;
-            }
-            if (result == HttpRequestParser::Result::Complete)
-            {
-                // We have a full, valid HTTP request - handle it
-                std::cout << "  Request complete: " << req.method << " " << req.path << "\n";
-                handleRequest(req);
-                return;
-            }
-            // Result::NeedMore - request is not complete yet, keep reading
-            continue;
-        }
-        if (bytesRead == 0)
-        {
-            // Browser closed the connection cleanly
+            queueResponse(HttpResponse::error(413, "Payload Too Large"), false);
             _state = State::Closing;
             return;
         }
-
-        // bytesRead < 0: nothing left to read right now. We don't inspect errno
-        // (poll() already told us this fd was ready; genuine fd errors/hangups
-        // are caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop).
+        if (result == HttpRequestParser::Result::UriTooLong)
+        {
+            queueResponse(HttpResponse::error(414, "URI Too Long"), false);
+            _state = State::Closing;
+            return;
+        }
+        if (result == HttpRequestParser::Result::BadRequest)
+        {
+            std::cout << "  Bad request on fd=" << fd() << "\n";
+            queueResponse(HttpResponse::badRequest(), false);
+            _state = State::Closing;
+            return;
+        }
+        if (result == HttpRequestParser::Result::Complete)
+        {
+            std::cout << "  Request complete: " << req.method << " " << req.path << "\n";
+            handleRequest(req);
+            return;
+        }
+        // Result::NeedMore - request not complete yet, just return.
+        // We'll be called again once poll() sees more data.
         return;
     }
+
+    if (bytesRead == 0)
+    {
+        // Browser closed the connection cleanly
+        _state = State::Closing;
+        return;
+    }
+
+    // bytesRead < 0: nothing to read right now. We don't inspect errno
+    // (poll() already told us this fd was ready; genuine fd errors/hangups
+    // are caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop).
+    return;
 }
 
 // onWritable() is called by the EventLoop when poll() says this fd is ready to send.
 // We flush as much of our output buffer as possible.
+// void ClientConnection::onWritable()
 void ClientConnection::onWritable()
 {
-    while (!_out.empty())
+    if (_out.empty())
+        return;
+
+    // Exactly one send() attempt per call. If there's more to send,
+    // poll() will flag this fd as writable again next time, we never
+    // send in a loop without going back through poll() first.
+    ssize_t bytesSent = ::send(fd(), _out.data(), _out.size(), 0);
+
+    if (bytesSent > 0)
     {
-        // send() tries to write bytes from our output buffer to the socket.
-        // It may not send everything at once (partial write) - that is normal.
-        ssize_t bytesSent = ::send(fd(), _out.data(), _out.size(), 0);
-
-        if (bytesSent > 0)
-        {
-            // Remove the bytes that were successfully sent
-            _out.erase(0, static_cast<size_t>(bytesSent));
-            continue; // Try to send more
-        }
-
-        // bytesSent < 0: can't send right now. We don't inspect errno; poll()
-        // already told us this fd was ready, and real fd errors/hangups are
-        // caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop.
+        // Remove the bytes that were successfully sent. If there's more
+        // left in _out, poll() will call us again once the socket is
+        // writable again.
+        _out.erase(0, static_cast<size_t>(bytesSent));
         return;
     }
-    // Output buffer is now empty - response has been fully sent.
-    // shouldRemove() will pick this up if state is Closing.
+
+    // bytesSent < 0: can't send right now. We don't inspect errno; poll()
+    // already told us this fd was ready, and real fd errors/hangups are
+    // caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop.
+    return;
 }
 
 // queueResponse() serializes an HttpResponse into raw bytes and stores them

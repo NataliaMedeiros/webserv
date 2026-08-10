@@ -38,12 +38,10 @@ void Listener::openAndBind()
     // instead of freezing the server until someone connects.
     Net::setNonBlocking(_fd.get());
 
-// Step 4: Bind - attach the socket to a specific port on this machine.
-    // NEW (Noor): use the configured host/interface via inet_pton() instead
-    // of always INADDR_ANY. "0.0.0.0" (the default) still means "all
-    // interfaces", inet_pton() correctly parses it to the same value.
-    // A genuinely invalid host string now fails loudly instead of being
-    // silently ignored.
+// Step 4: Bind - attach the socket to a specific interface and port.
+    // Uses inet_pton() to parse the configured host string. "0.0.0.0"
+    // (the default) still means "all interfaces". A genuinely invalid
+    // host string now fails loudly instead of being silently ignored.
     // htons() converts the port number to network byte order (big-endian)
     sockaddr_in addr;
     addr.sin_family = AF_INET;

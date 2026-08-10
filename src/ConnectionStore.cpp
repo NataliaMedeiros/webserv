@@ -1,11 +1,10 @@
 #include "ConnectionStore.hpp"
 
-
-// Each client receives the correct config via add(fd, config),
-// passed in by EventLoop which knows which listener the client came from.
-// // ConnectionStore keeps track of all active client connections.
-// // It owns the ClientConnection objects - when a connection is removed,
-// // the object is destroyed and the fd is automatically closed (RAII).
+// ConnectionStore keeps track of all active client connections. It owns
+// the ClientConnection objects, when a connection is removed, the object
+// is destroyed and the fd is automatically closed (RAII).
+// Each client receives the correct config via add(fd, config), passed
+// in by EventLoop, which knows which listener the client came from.
 
 // add() creates a new ClientConnection for the given fd and stores it.
 void ConnectionStore::add(int fd, const ServerConfig& config)
@@ -25,7 +24,6 @@ void ConnectionStore::remove(int fd)
     _conns.erase(fd);
 }
 
-// NEW get function (6 july, by Noor)
 ClientConnection* ConnectionStore::get(int fd)
 {
     auto it = _conns.find(fd);

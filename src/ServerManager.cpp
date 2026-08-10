@@ -9,11 +9,9 @@
 //   _store      -> keeps track of all active client connections
 //   _loop       -> runs the poll() event loop that drives everything
 //
-// Multi port update (6 july, by Noor):
-// Instead of one Listener, we now create one per ServerConfig.
-// buildListeners() is a static helper that does this before the
-// initializer list runs, because we need _listeners ready before
-// we can pass it to EventLoop.
+// One Listener is created per ServerConfig. buildListeners() is a
+// static helper that does this before the initializer list runs,
+// because we need _listeners ready before we can pass it to EventLoop.
 
 // static helper: builds a Listener for each config
 std::vector<Listener> ServerManager::buildListeners(const std::vector<ServerConfig>& configs)

@@ -527,36 +527,25 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
         {
             std::string value = tokens[i++];
             parseListen(value, srv);
-            std::cerr << "Parsed server listen: "
-                      << srv.host << ":" << srv.port
-                      << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after listen");
         }
         else if (key == "root")
         {
             srv.root = tokens[i++];
-            std::cerr << "Parsed server root: "
-                      << srv.root
-                      << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after root");
         }
         else if (key == "index")
         {
             srv.index = tokens[i++];
-            std::cerr << "Parsed server index: "
-                      << srv.index
-                      << std::endl;
+
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after index");
         }
         else if (key == "location")
         {
             srv.locations.push_back(parseLocation(tokens, i));
-            std::cerr << "Parsed server location: "
-                      << srv.locations.back().path
-                      << std::endl;
             continue; // parseLocation consumed its own ;/}
         }
         else if (key == "error_page")
@@ -567,18 +556,12 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
             if (i >= tokens.size() || tokens[i] == ";" || tokens[i] == "}")
                 throw std::runtime_error("error_page missing file path");
             srv.errorPages[code] = tokens[i++];
-            std::cerr << "Parsed server error_page: "
-                      << code << " -> " << srv.errorPages[code]
-                      << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after error_page");
         }
          else if (key == "client_max_body_size")
         {
             srv.maxBodySize = parseSize(tokens[i++]);
-            std::cerr << "Parsed server max body: "
-          << srv.maxBodySize
-          << std::endl;
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after client_max_body_size");
         }

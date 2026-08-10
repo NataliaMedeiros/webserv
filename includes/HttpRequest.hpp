@@ -9,7 +9,7 @@
 class HttpRequest
 {
 	public:
-		std::string method; // Take the first word from the request
+		std::string method;
 		std::string path;
 		std::string query_string;
 		std::map<std::string, std::string> query_params;

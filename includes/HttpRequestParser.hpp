@@ -60,12 +60,12 @@ class HttpRequestParser
 		static bool isValidVersion(const std::string& version);
 		void splitPathQuery(HttpRequest& req);
 		static void parseQueryString(HttpRequest& req);
-		long parseContentLength(const std::string& value) const; // Parses and validates the Content-Length header.
-		long parseChunkSize(const std::string& value) const; // Parses the hexadecimal size of a chunk.
-		Result parseFixedBody(HttpRequest& req); // Incrementally consumes a body with Content-Length.
-		Result parseChunkedBody(HttpRequest& req); // Incrementally consumes a chunked body.
-		Result finishRequest(HttpRequest& req); // Finalizes and hands off the request to ClientConnection.
-		void resetRequestState(); // Clears internal state for the next request.
+		long parseContentLength(const std::string& value) const;
+		long parseChunkSize(const std::string& value) const;
+		Result parseFixedBody(HttpRequest& req);
+		Result parseChunkedBody(HttpRequest& req);
+		Result finishRequest(HttpRequest& req);
+		void resetRequestState();
 };
 
 #endif

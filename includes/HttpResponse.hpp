@@ -11,7 +11,6 @@ struct HttpResponse
 
     HttpResponse();
 
-    // Serialize to bytes ready for send().
     // keepAlive comes from HttpRequestParser / HttpRequest::keepAlive.
     std::string toRaw(bool keepAlive) const;
 

@@ -30,4 +30,11 @@ class EventLoop
     // Checks every active connection for a CGI script that
     // has been running too long, kills and cleans it up if so.
     void checkCgiTimeouts();
+    
+    // Checks every active connection for one that has gone quiet
+    // (never sent a request, or never came back after keep-alive),
+    // and closes it. Without this a silent client can hold its fd
+    // open forever, since poll() never reports anything for a socket
+    // nothing happens on.
+    void checkIdleTimeouts();
 };

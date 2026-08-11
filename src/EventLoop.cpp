@@ -211,6 +211,26 @@ void EventLoop::checkCgiTimeouts()
         }
     }
 }
+// Checks every active connection for one that has gone quiet too long
+// (no bytes read or written), and closes it. We collect the fds to
+// remove first instead of removing while iterating _store.all(),
+// removing from the map mid-loop would invalidate the iterator.
+void EventLoop::checkIdleTimeouts()
+{
+    std::vector<int> toRemove;
+
+    for (auto& pair : _store.all())
+    {
+        if (pair.second->idleTimedOut())
+            toRemove.push_back(pair.first);
+    }
+
+    for (int fd : toRemove)
+    {
+        std::cout << "[!] Idle timeout on fd=" << fd << "\n";
+        _store.remove(fd);
+    }
+}
 
 // run() is the main server loop - it never returns while the server is alive.
 void EventLoop::run()
@@ -236,8 +256,10 @@ void EventLoop::run()
         if (readyCount > 0)
             dispatchEvents();
 
-        // Check every connection for a hung CGI script. 
-        // This runs every ~1 second regardless of network activity.
+        // Check every connection for a hung CGI script, or a client
+        // that has gone quiet. This runs every ~1 second regardless
+        // of network activity.
         checkCgiTimeouts();
+        checkIdleTimeouts();
     }
 }

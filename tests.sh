@@ -26,6 +26,7 @@ clean_test_artifacts() {
         "$CONF" \
         "$ROOT" \
         "$LOG" \
+        ".test_cgi_bigbody.bin" \
         "$MULTI_CONF" \
         "$MULTI_ROOT1" \
         "$MULTI_ROOT2" \
@@ -192,6 +193,18 @@ expect_file_not_exists() {
     fi
 }
 
+# Counts currently open file descriptors for a given PID.
+# Works on Linux (/proc) and macOS (lsof), so it runs the same way
+# on the school machines and on a dev laptop.
+count_open_fds() {
+    pid="$1"
+    if [ -d "/proc/$pid/fd" ]; then
+        ls "/proc/$pid/fd" 2>/dev/null | wc -l | tr -d ' '
+    else
+        lsof -p "$pid" 2>/dev/null | wc -l | tr -d ' '
+    fi
+}
+
 printf "Running merge sanity checks...\n"
 expect_makefile_contains_src "src/HttpResponse.cpp" "Merge uses real HttpResponse.cpp"
 expect_makefile_not_contains_src "src/stubs.cpp" "Merge does not compile old integration stubs.cpp"
@@ -229,6 +242,20 @@ print()
 print(body)
 PYCGI
 chmod +x "$ROOT/cgi/echo_body.py"
+
+# Deliberately does NOT read stdin before answering and exiting.
+# This is normal, valid CGI behaviour (a script is free to ignore
+# the request body), and it is what exposed the SIGPIPE crash /
+# leftover-stdin-pipe bug found during evaluation: if the server is
+# still mid-write to the CGI's stdin when the script exits, that pipe
+# must be closed, and the server must never die from writing to it.
+cat > "$ROOT/cgi/ignore_body.py" <<'PYCGI'
+#!/usr/bin/env python3
+print("Content-Type: text/html")
+print()
+print("<h1>done, never read the body</h1>")
+PYCGI
+chmod +x "$ROOT/cgi/ignore_body.py"
 
 cat > "$CONF" <<CONFIG
 server {
@@ -714,6 +741,50 @@ resp="$(raw_request "POST /cgi/echo_body.py HTTP/1.1\r\nHost: localhost\r\nTrans
 expect_contains "$resp" "HTTP/1.1 200 OK" "CGI accepts chunked POST request"
 expect_contains "$resp" "Wikipedia" "CGI receives unchunked request body"
 expect_not_contains "$resp" "4\r\nWiki" "CGI body does not contain raw chunk size"
+
+# ------------------------------------------------------------
+# Regression test: found during evaluation. A CGI script is allowed
+# to exit without reading the whole request body (ignore_body.py does
+# exactly that). If the server is still mid-write to that script's
+# stdin pipe when it exits, two things must both hold:
+#   1. the server must not die (it used to get killed by SIGPIPE)
+#   2. the leftover stdin pipe fd must actually get closed, not leak
+# The body has to be bigger than a single pipe write (64K on Linux)
+# so the write is still in progress when the script exits early.
+# ------------------------------------------------------------
+if [ -n "${PID}" ] && kill -0 "$PID" 2>/dev/null; then
+    fds_before="$(count_open_fds "$PID")"
+
+    big_body_file=".test_cgi_bigbody.bin"
+    head -c 900000 /dev/zero | tr '\0' 'A' > "$big_body_file"
+    for _ in 1 2 3 4 5; do
+        curl -sS -o /dev/null --max-time 5 -X POST \
+            --data-binary "@${big_body_file}" \
+            "http://127.0.0.1:${PORT}/cgi/ignore_body.py" >/dev/null 2>&1
+    done
+    rm -f "$big_body_file"
+
+    if kill -0 "$PID" 2>/dev/null; then
+        ok "Server survives CGI script exiting before request body is fully written"
+    else
+        ko "Server survives CGI script exiting before request body is fully written"
+        printf "Server process died, most likely a SIGPIPE from writing to a closed CGI stdin pipe.\n"
+    fi
+
+    if kill -0 "$PID" 2>/dev/null; then
+        fds_after="$(count_open_fds "$PID")"
+        if [ "$fds_after" -le "$((fds_before + 1))" ]; then
+            ok "No leftover CGI stdin pipe fds after repeated early-exit CGI requests"
+        else
+            ko "No leftover CGI stdin pipe fds after repeated early-exit CGI requests"
+            printf "fd count went from %s to %s after 5 requests, expected it to stay roughly flat.\n" \
+                "$fds_before" "$fds_after"
+        fi
+    fi
+else
+    ko "Server survives CGI script exiting before request body is fully written"
+    printf "Server was not running before this test started, skipping.\n"
+fi
 
 
 

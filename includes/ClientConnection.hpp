@@ -22,6 +22,11 @@ public:
 
   explicit ClientConnection(int fd, const ServerConfig& config);
 
+  // Safety net: if connection is destroyed while CGI script is
+  // still running (e.g. the browser dropped the connection abruptly),
+  // this makes sure the child process is killed and reaped, and both
+  // pipes are closed, no matter which code path caused the removal.
+  ~ClientConnection();
   int fd() const { return _fd.get(); }
 
   // Which events should poll() watch for this client?
@@ -50,6 +55,13 @@ public:
   bool cgiTimedOut() const;
   void killCgi(); // kills and cleans up a timed-out CGI child, sends 504
 
+  // Called periodically by EventLoop to check for a client that has
+  // gone quiet, e.g. connected and never sent anything, or finished a
+  // keep-alive request and never came back. Without this a silent
+  // client can hold its fd open forever, since poll() never reports
+  // anything for a socket nothing happens on.
+  bool idleTimedOut() const;
+
 private:
   Fd _fd;
   State _state = State::Reading;
@@ -70,6 +82,12 @@ private:
   // longer than CGI_TIMEOUT_SECONDS, we kill it and respond with 504.
   static const int CGI_TIMEOUT_SECONDS = 30;
   time_t _cgiStartTime = 0;
+
+  // Timeout for an idle client connection. Updated every time we
+  // actually read or write bytes on the socket. If nothing happens for
+  // IDLE_TIMEOUT_SECONDS, EventLoop closes the connection.
+  static const int IDLE_TIMEOUT_SECONDS = 60;
+  time_t _lastActivity;
 
   // Non-blocking write of the request body to CGI stdin
   int _cgiStdinFd = -1;         // write end: request body goes to the CGI's stdin

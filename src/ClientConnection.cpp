@@ -5,15 +5,13 @@
 #include <sys/wait.h>
 #include <sstream>
 #include <signal.h>
-#include <cerrno>
 #include <iostream>
 
-// ClientConnection represents one open TCP connection with one browser.
-// It is a state machine - always in exactly one of three states:
-//
-//   Reading  -> waiting for and receiving bytes from the browser
-//   Writing  -> a response is ready and we are sending it back
-//   Closing  -> we are done, EventLoop will remove this connection
+// A ClientConnection = an open TCP connection with a browser.
+// It can be in one of the 3 states:
+//   Reading  -> waiting for and receiving bytes from browser
+//   Writing  -> response is ready and we are sending it back
+//   Closing  -> done! EventLoop will remove this connection
 //
 // State transitions:
 //   Reading -> Writing  : request fully received and parsed, response queued
@@ -22,8 +20,30 @@
 //   Reading -> Closing  : browser disconnected or sent a bad request
 ClientConnection::ClientConnection(int fd, const ServerConfig& config)
     : _fd(fd), _router(config),
-    _parser([this](const std::string& path) -> size_t{return _router.maxBodySizeFor(path);})
+    _parser([this](const std::string& path) -> size_t{return _router.maxBodySizeFor(path);}),
+    _lastActivity(::time(nullptr))
 {
+}
+
+// Safety net for CGI resources. Most of the time these are already closed
+// by the specific code path that ends the connection (killCgi() on a
+// timeout, or the EOF handling in onCgiReadable() once the script is
+// done). But if the connection is removed some other way while a CGI
+// is still in flight, e.g. EventLoop sees the client socket hang up
+// (POLLERR/POLLHUP/POLLNVAL) mid-script, nothing else would ever close
+// these. Without this, the pipe fds leak and the child process is left
+// unreaped (becoming a zombie).
+ClientConnection::~ClientConnection()
+{
+    if (_cgiPid != -1)
+    {
+        ::kill(_cgiPid, SIGKILL);
+        ::waitpid(_cgiPid, nullptr, 0);
+    }
+    if (_cgiFd != -1)
+        ::close(_cgiFd);
+    if (_cgiStdinFd != -1)
+        ::close(_cgiStdinFd);
 }
 
 // wantedEvents() tells the EventLoop which poll() events we care about right now.
@@ -65,6 +85,7 @@ void ClientConnection::onReadable()
 
     if (bytesRead > 0)
     {
+        _lastActivity = ::time(nullptr);
         // Feed the received bytes to the parser.
         // The parser may need multiple calls before it has a complete request
         // (TCP can split one HTTP request across multiple recv() calls,
@@ -110,7 +131,8 @@ void ClientConnection::onReadable()
         return;
     }
 
-    // bytesRead < 0: nothing to read right now. We don't inspect errno
+    // bytesRead < 0: nothing to read. 
+    // We don't inspect errno
     // (poll() already told us this fd was ready; genuine fd errors/hangups
     // are caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop).
     return;
@@ -129,8 +151,9 @@ void ClientConnection::onWritable()
     // send in a loop without going back through poll() first.
     ssize_t bytesSent = ::send(fd(), _out.data(), _out.size(), 0);
 
-    if (bytesSent > 0)
+   if (bytesSent > 0)
     {
+        _lastActivity = ::time(nullptr);
         // Remove the bytes that were successfully sent. If there's more
         // left in _out, poll() will call us again once the socket is
         // writable again.
@@ -355,6 +378,20 @@ bool ClientConnection::cgiTimedOut() const
     return (now - _cgiStartTime) >= CGI_TIMEOUT_SECONDS;
 }
 
+// Checks if this connection has gone quiet for too long, no bytes read
+// or written, and hasn't sent or received anything in over
+// IDLE_TIMEOUT_SECONDS. CGI connections are excluded here: they have
+// their own timeout via cgiTimedOut(), a script legitimately running
+// for a while shouldn't also count as an idle client.
+bool ClientConnection::idleTimedOut() const
+{
+    if (_state == State::CGI)
+        return false;
+
+    time_t now = ::time(nullptr);
+    return (now - _lastActivity) >= IDLE_TIMEOUT_SECONDS;
+}
+
 // Kills a hung CGI child, reaps it, closes both pipes, and queues
 // a 504 Gateway Timeout response for the client.
 void ClientConnection::killCgi()
@@ -404,6 +441,17 @@ void ClientConnection::onCgiReadable()
     // bytesRead == 0 means the pipe closed, script is done
     ::close(_cgiFd);
     _cgiFd = -1;
+
+    // The script may have exited without reading the whole request body
+    // (very normal, e.g. a script that ignores POST data). If we were
+    // still mid-write to its stdin, that pipe is now leaking: nothing
+    // will ever read it again, since the CGI process is gone.
+    if (_cgiStdinFd != -1)
+    {
+        ::close(_cgiStdinFd);
+        _cgiStdinFd = -1;
+        _cgiBody.clear();
+    }
 
     int status = 0;
     bool cgiFailed = false;

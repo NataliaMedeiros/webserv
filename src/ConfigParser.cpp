@@ -84,7 +84,7 @@ static size_t parseSize(const std::string& value)
         );
     }
 
-    size_t numberLength = value.size();
+    size_t numberLength = value.size();//size is the length of the string
     unsigned long long multiplier = 1;
 
     const char suffix = value[value.size() - 1];
@@ -129,6 +129,8 @@ static size_t parseSize(const std::string& value)
 
     try
     {
+        //std::stoull() converts a string to an unsigned long long integer. 
+        //parameters: the string to convert, a pointer the number of chars, and the base for conversion (10 for decimal)
         number = std::stoull(
             numberPart,
             &parsedCharacters,
@@ -139,7 +141,7 @@ static size_t parseSize(const std::string& value)
     {
         throw std::runtime_error(
             "invalid client_max_body_size: " + value
-        );
+        );//If the conversion fails (e.g., due to invalid characters)
     }
 
     if (parsedCharacters != numberPart.size())
@@ -148,6 +150,10 @@ static size_t parseSize(const std::string& value)
             "invalid client_max_body_size: " + value
         );
     }
+   
+    // We need to check for overflow before multiplying by the multiplier.
+    //max(type) is the maximum value that can be represented by the type.
+    //The maximum size_t allows is 2^(number of bits) - 1.
     const unsigned long long maxSize =
         static_cast<unsigned long long>(
             std::numeric_limits<size_t>::max()

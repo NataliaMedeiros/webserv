@@ -16,6 +16,7 @@
 // ─────────────────────────────────────────────
 std::vector<std::string> ConfigParser::tokenize(const std::string& text)
 {
+
     std::vector<std::string> tokens; //vector is a dynamic array to store tokens
     std::string temp;//temporary storage for building up a token
 
@@ -52,11 +53,11 @@ std::vector<std::string> ConfigParser::tokenize(const std::string& text)
 static void parseListen(const std::string& value, ServerConfig& srv)
 {
     size_t colon = value.find(':');
-    if (colon == std::string::npos)
+    if (colon == std::string::npos)//npos means no colon found
     {
         // Just a port, e.g. "listen 8080;"
-        try { srv.port = std::stoi(value); }
-        catch (...) { throw std::runtime_error("invalid port: " + value); }
+        try { srv.port = std::stoi(value); }//stoi converts string to int
+        catch (...) { throw std::runtime_error("invalid port: " + value); }//if not a valid integer
     }
     else
     {
@@ -66,7 +67,6 @@ static void parseListen(const std::string& value, ServerConfig& srv)
         try { srv.port = std::stoi(portStr); }
         catch (...) { throw std::runtime_error("invalid port: " + portStr); }
     }
-
     if (srv.port < 1 || srv.port > 65535)
         throw std::runtime_error("port out of range: " + std::to_string(srv.port));
 }
@@ -91,7 +91,7 @@ static size_t parseSize(const std::string& value)
 
     if (suffix == 'K' || suffix == 'k')
     {
-        multiplier = 1024ULL;
+        multiplier = 1024ULL;//ULL means unsigned long long literal
         --numberLength;
     }
     else if (suffix == 'M' || suffix == 'm')
@@ -111,7 +111,7 @@ static size_t parseSize(const std::string& value)
         );
     }
     const std::string numberPart =
-        value.substr(0, numberLength);
+        value.substr(0, numberLength);//extract the numeric part of the value, excluding the suffix
 
     for (size_t i = 0; i < numberPart.size(); ++i)
     {
@@ -178,7 +178,8 @@ LocationConfig ConfigParser::parseLocation(
     LocationConfig loc;
 
     // Expected syntax:
-    // location <path> {
+    // location <path> 
+    //so if { or } or ; comes before path, it's an error
     if (i >= tokens.size()
         || tokens[i] == "{"
         || tokens[i] == "}"
@@ -514,7 +515,7 @@ LocationConfig ConfigParser::parseLocation(
 // ─────────────────────────────────────────────
 ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t& i)
 {
-    ServerConfig srv;
+    ServerConfig srv;//create a new ServerConfig object to hold the parsed server configuration
     if (i >= tokens.size() || tokens[i] != "{")
         throw std::runtime_error("expected { after server");
     ++i;
@@ -532,7 +533,7 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
         }
         else if (key == "root")
         {
-            srv.root = tokens[i++];
+            srv.root = tokens[i++];//assign the curre token to arv.root and move to next token
             if (i >= tokens.size() || tokens[i] != ";")
                 throw std::runtime_error("missing ; after root");
         }
@@ -592,7 +593,7 @@ std::vector<ServerConfig> ConfigParser::parse(const std::string& filename)
     std::vector<std::string> tokens = tokenize(text);
     std::vector<ServerConfig> servers;
     size_t i = 0;
-    while (i < tokens.size())
+    while (i < tokens.size())//size() returns the number of tokens in the vector
     {
         if (tokens[i] != "server")
             throw std::runtime_error("expected 'server' block, found: " + tokens[i]);

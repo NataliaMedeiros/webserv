@@ -15,13 +15,14 @@ bool FileSystem::exists(const std::string& path)
 
 
 //PURPOSE: Is this path a regular file?(not a directory, symbolic link, or special file)
-//if stat() return not zero, it means file does not exist
-//if stat() return zero, we check if st_mode indicates it's a regular file using S_ISREG macro
+//stat() return non zero means file does not exist
+//stat() return zero means file exists and fills the st struct with metadata about the file
 //S_ISREG is a c++11 marco from sys/stat.h that checks if the file mode indicates a regular file
+//if S_ISREG returns 1, then the path is a regular file, otherwise it is not
 
 bool FileSystem::isFileNormal(const std::string& path)
 {
-    struct stat st;
+    struct stat st;//stat holds metadata about the file, such as its type, permissions, size, and timestamps
     if (stat(path.c_str(), &st) != 0)
         return false;
     return S_ISREG(st.st_mode);//S_ISREG does the actual check
@@ -36,9 +37,12 @@ bool FileSystem::isDir(const std::string& path)
     return S_ISDIR(st.st_mode);
 }
 
-//ifstream reads raw bytes. ios::binary prevents text mode translation for non-text files like images, PDFs
+//PURPOSE: Read entire file into a string. Returns false if failed.
+//ifstream, from <fstream> is a class that provides an interface for reading data from files.
+//file is an instance of ifstream that opens the file at the specified path in binary mode.
+//(meaning read as bytes instead of text and special character translation)
 //ostringstream is used to read the entire file content into a string in one go
-//rdbuf() exposes the underlying stream buffer of the file, (which is a pointer to char array containing the file content)
+//rdbuf() exposes the stream buffer of the file
 // << operator copies bytes from that buffer into the stringstream,
 //which is then converted to a string from the string stream using ss.str() and stored in outContent
 
@@ -49,7 +53,7 @@ bool FileSystem::readFile(const std::string& path, std::string& outContent)
         return false;
     std::ostringstream ss;
     ss << file.rdbuf();
-    outContent = ss.str();
+    outContent = ss.str(); 
     return true;
 }
 

@@ -434,10 +434,13 @@ void ClientConnection::onCgiReadable()
         return; // More data might come, wait for next poll() call
     }
     if (bytesRead < 0)
+    {
+        _state = State::Closing;
         return; // Nothing to read right now; we don't inspect errno, poll()
                 // will call us again. Genuine pipe errors surface as EOF
                 // (bytesRead == 0) once the CGI process exits.
-
+    }
+      
     // bytesRead == 0 means the pipe closed, script is done
     ::close(_cgiFd);
     _cgiFd = -1;

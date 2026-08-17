@@ -1,12 +1,7 @@
 NAME = webserv
 CXX = c++
-# NOTE: C++ standard flag
-# On newer compilers (Linux at school, clang 16+): use -std=c++23
-# On Noors macbook (Mac with clang 14):          use -std=c++2b
-# Both mean the same thing - c++2b is just the draft name for C++23.
-# Switch the flag below depending on the machine:
-CXXFLAGS = -Wall -Wextra -Werror -std=c++2b
-# CXXFLAGS = -Wall -Wextra -Werror -std=c++23
+# CXXFLAGS = -Wall -Wextra -Werror -std=c++2b
+CXXFLAGS = -Wall -Wextra -Werror -std=c++20
 
 INCLUDES = -Iincludes
 

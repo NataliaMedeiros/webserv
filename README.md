@@ -179,7 +179,7 @@ The target file should be removed from the server.
 
 # Technical Choices
 
-* Written in **C++2b**.
+* Written in **C++20**.
 * Uses sockets for network communication.
 * Uses `poll()` as the event monitoring mechanism.
 * Handles all socket I/O through a single event loop.

@@ -583,11 +583,6 @@ ServerConfig ConfigParser::parseServer(std::vector<std::string>& tokens, size_t&
     return srv;
 }
 
-// ─────────────────────────────────────────────
-// parse()
-//
-// Top-level: read file, tokenize, find "server { ... }".
-// ─────────────────────────────────────────────
 std::vector<ServerConfig> ConfigParser::parse(const std::string& filename)
 {
     std::string text;

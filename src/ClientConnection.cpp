@@ -160,6 +160,11 @@ void ClientConnection::onWritable()
         _out.erase(0, static_cast<size_t>(bytesSent));
         return;
     }
+    if (bytesSent < 0)
+    {
+        _state = State::Closing;
+        return;
+    }
 
     // bytesSent < 0: can't send right now. We don't inspect errno; poll()
     // already told us this fd was ready, and real fd errors/hangups are

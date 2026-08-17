@@ -239,10 +239,9 @@ void EventLoop::run()
 
     while (true)
     {
-        // Step 1: build the list of fds to watch
         rebuildPollFds();
 
-        // Step 2: wait until at least one fd is ready
+        // wait until at least one fd is ready
         // 1000ms timeout instead of -1 (wait forever). This lets
         // us wake up periodically even with no network activity, so we can
         // check for a CGI script that has been running too long.
@@ -252,7 +251,7 @@ void EventLoop::run()
         if (readyCount < 0)
             continue;
 
-        // Step 3: handle all ready fds (only if something actually happened)
+        // handle all ready fds (only if something actually happened)
         if (readyCount > 0)
             dispatchEvents();
 

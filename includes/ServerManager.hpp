@@ -13,7 +13,7 @@ class ServerManager {
 public:
   explicit ServerManager(const std::vector<ServerConfig>& configs);
 
-  void run();
+  void startServer();
 
 private:
   std::vector<ServerConfig> _configs;

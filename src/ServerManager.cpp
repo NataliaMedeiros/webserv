@@ -19,7 +19,7 @@ std::vector<Listener> ServerManager::buildListeners(const std::vector<ServerConf
     std::vector<Listener> listeners;
     for (const ServerConfig& config : configs)
     {
-        listeners.emplace_back(static_cast<uint16_t>(config.port), config.host);  
+        listeners.emplace_back(static_cast<uint16_t>(config.port), config.host);
         std::cout << "Starting Webserv on port " << config.port << "...\n";
         std::cout << "Open your browser at: http://localhost:" << config.port << "/\n";
     }
@@ -35,7 +35,7 @@ ServerManager::ServerManager(const std::vector<ServerConfig>& configs)
 }
 
 // run() starts the server. It never returns while the server is alive.
-void ServerManager::run()
+void ServerManager::startServer()
 {
     _loop.run();
 }

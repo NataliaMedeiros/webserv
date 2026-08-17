@@ -24,7 +24,7 @@ int main(int argc, char** argv)
             throw std::runtime_error("no server blocks found in config");
 
         ServerManager server(configs);
-        server.run();
+        server.startServer();
     }
     catch (const std::exception& e)
     {

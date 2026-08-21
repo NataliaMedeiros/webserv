@@ -25,14 +25,9 @@ ClientConnection::ClientConnection(int fd, const ServerConfig& config)
 {
 }
 
-// Safety net for CGI resources. Most of the time these are already closed
-// by the specific code path that ends the connection (killCgi() on a
-// timeout, or the EOF handling in onCgiReadable() once the script is
-// done). But if the connection is removed some other way while a CGI
-// is still in flight, e.g. EventLoop sees the client socket hang up
-// (POLLERR/POLLHUP/POLLNVAL) mid-script, nothing else would ever close
-// these. Without this, the pipe fds leak and the child process is left
-// unreaped (becoming a zombie).
+// Safety net for CGI resources, in case the connection is torn down
+// mid-script some other way (e.g. client socket hangs up)! Otherwise
+// these fds leak and the child becomes a zombie
 ClientConnection::~ClientConnection()
 {
     if (_cgiPid != -1)
@@ -130,33 +125,31 @@ void ClientConnection::onReadable()
         _state = State::Closing;
         return;
     }
-
-    // bytesRead < 0: nothing to read. 
-    // We don't inspect errno
-    // (poll() already told us this fd was ready; genuine fd errors/hangups
-    // are caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop).
+    if (bytesRead < 0)
+    {
+        // Browser closed the connection cleanly
+        _state = State::Closing;
+        return;
+    }
     return;
 }
 
-// onWritable() is called by the EventLoop when poll() says this fd is ready to send.
+// onWritable() called by EventLoop if poll() says this fd is ready to send.
 // We flush as much of our output buffer as possible.
-// void ClientConnection::onWritable()
 void ClientConnection::onWritable()
 {
     if (_out.empty())
         return;
 
-    // Exactly one send() attempt per call. If there's more to send,
-    // poll() will flag this fd as writable again next time, we never
-    // send in a loop without going back through poll() first.
+    // One send() attempt per call! If more to send poll() flags 
+    // this fd as writable again for next round
     ssize_t bytesSent = ::send(fd(), _out.data(), _out.size(), 0);
 
    if (bytesSent > 0)
     {
         _lastActivity = ::time(nullptr);
-        // Remove the bytes that were successfully sent. If there's more
-        // left in _out, poll() will call us again once the socket is
-        // writable again.
+        // Remove bytes that were sent. If there's more in _out
+        // poll() calls again once socket is writable again
         _out.erase(0, static_cast<size_t>(bytesSent));
         return;
     }
@@ -165,10 +158,11 @@ void ClientConnection::onWritable()
         _state = State::Closing;
         return;
     }
-
-    // bytesSent < 0: can't send right now. We don't inspect errno; poll()
-    // already told us this fd was ready, and real fd errors/hangups are
-    // caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop.
+    if (bytesSent == 0)
+    {
+        _state = State::Closing;
+        return;
+    }
     return;
 }
 
@@ -216,15 +210,14 @@ void ClientConnection::handleRequest(const HttpRequest& req)
 }
 
 // startCgi() forks a child process to run a CGI script.
-// The child runs the script via execve(). The parent keeps the
-// read end of the pipe so EventLoop can poll() it for output
+// Child runs script via execve(). Parent keeps 
+// read end of pipe so EventLoop can poll() it for output
 void ClientConnection::startCgi(const std::string& executable,
                                 const std::string& scriptPath,
                                 const std::vector<std::string>& env,
                                 const std::string& body)
 {
-    // Two pipes: outPipe carries the script's output back to us,
-    // inPipe carries the request body to the script's stdin.
+    // Two pipes: for script's output, and for its stdin input
     int outPipe[2];
     int inPipe[2];
 
@@ -267,11 +260,8 @@ void ClientConnection::startCgi(const std::string& executable,
         ::close(inPipe[0]);
         ::close(outPipe[1]);
 
-        // Resolve the executable to an absolute path BEFORE
-        // changing directory. If "executable" is relative (e.g. "./cgi_tester")
-        // it is relative to the server's original working directory, chdir'ing
-        // first would break it (execve would look for it inside the script's
-        // directory instead). realpath() must run before chdir().
+        // Resolve to absolute path BEFORE chdir, or a relative
+        // executable path breaks once we're in the script's directory
         char resolvedExecutable[PATH_MAX];
         std::string executableToRun = executable;
         if (::realpath(executable.c_str(), resolvedExecutable) != nullptr)
@@ -315,16 +305,14 @@ void ClientConnection::startCgi(const std::string& executable,
     _cgiBody = body;
     _cgiBodyWritten = 0;
 
-    // Pipes are blocking by default. Without this,
-    // write()/read() here would freeze the whole event loop, even though
-    // poll() told us the fd was ready, because a single write() call can
-    // still block until the pipe has room for ALL the bytes we ask for.
+    // Pipes blocking by default. Without this, write()/read() could
+    // still block until the pipe has room, freezing whole event loop
     Net::setNonBlocking(_cgiFd);
     if (_cgiStdinFd != -1)
         Net::setNonBlocking(_cgiStdinFd);
 
-    // If there is no body at all, close the write end right away
-    // so the CGI sees EOF immediately instead of waiting forever.
+    // If no body at all: close write end right away
+    // so CGI sees EOF immediately instead of waiting forever!
     if (_cgiBody.empty())
     {
         ::close(_cgiStdinFd);
@@ -336,17 +324,15 @@ void ClientConnection::startCgi(const std::string& executable,
     _state = State::CGI;
 }
 
-// onCgiWritable() is called by EventLoop when the CGI stdin pipe is
-// ready to accept more data. write() is non-blocking, so it only
-// writes what currently fits, this never blocks the whole server.
+// onCgiWritable() called by EventLoop when CGI stdin pipe is
+// ready to accept more data. write() is non-blocking, so we write
+// in chunks to never block whole server
 void ClientConnection::onCgiWritable()
 {
     if (_cgiStdinFd == -1)
         return; // nothing left to write
 
-    // No need to cap this artificially, the pipe is non-blocking, so write()
-    // only writes what fits and returns immediately either way. A small cap
-    // just means far more poll() round trips than necessary.
+    // Pipe is non-blocking, write() only takes what fits. No need to cap this.
     size_t remaining = _cgiBody.size() - _cgiBodyWritten;
     ssize_t written = ::write(_cgiStdinFd,
                             _cgiBody.data() + _cgiBodyWritten,
@@ -357,7 +343,7 @@ void ClientConnection::onCgiWritable()
 
         if (_cgiBodyWritten >= _cgiBody.size())
         {
-            // Entire body sent. Close the pipe so the CGI sees EOF,
+            // Entire body sent. Close pipe so the CGI sees EOF,
             // exactly like it would after reading Content-Length bytes.
             ::close(_cgiStdinFd);
             _cgiStdinFd = -1;
@@ -365,9 +351,15 @@ void ClientConnection::onCgiWritable()
         }
         return;
     }
-    // written < 0: pipe buffer isn't ready right now. We don't inspect errno;
-    // poll() already told us this fd was ready, and real fd errors/hangups
-    // are caught separately via POLLERR/POLLHUP/POLLNVAL in EventLoop.
+    if (written == 0)
+        // Nothing was written
+        return;
+    if (written < 0)
+    {
+        // write() failed
+        _state = State::Closing;
+        return;
+    }
     return;
 }
 
@@ -383,11 +375,8 @@ bool ClientConnection::cgiTimedOut() const
     return (now - _cgiStartTime) >= CGI_TIMEOUT_SECONDS;
 }
 
-// Checks if this connection has gone quiet for too long, no bytes read
-// or written, and hasn't sent or received anything in over
-// IDLE_TIMEOUT_SECONDS. CGI connections are excluded here: they have
-// their own timeout via cgiTimedOut(), a script legitimately running
-// for a while shouldn't also count as an idle client.
+// Checks if connection has gone quiet for too long, no bytes read
+// or written, and hasn't sent or received anything in over IDLE_TIMEOUT_SECONDS. 
 bool ClientConnection::idleTimedOut() const
 {
     if (_state == State::CGI)
@@ -427,7 +416,7 @@ void ClientConnection::killCgi()
     queueResponse(HttpResponse::text(504, "Gateway Timeout"), false);
 }
 
-// onCgiReadable() is called by EventLoop when the CGI pipe has data
+// onCgiReadable() called by EventLoop when CGI pipe has data
 // We accumulate the output and build a response when the pipe closes.
 void ClientConnection::onCgiReadable()
 {
@@ -436,24 +425,22 @@ void ClientConnection::onCgiReadable()
     if (bytesRead > 0)
     {
         _cgiOutput += std::string(buf, static_cast<size_t>(bytesRead));
-        return; // More data might come, wait for next poll() call
+        return; // More data might come, wait for next poll()
     }
-    if (bytesRead < 0)
+    else if (bytesRead < 0)
     {
+        // Nothing to read right now
         _state = State::Closing;
-        return; // Nothing to read right now; we don't inspect errno, poll()
-                // will call us again. Genuine pipe errors surface as EOF
-                // (bytesRead == 0) once the CGI process exits.
+        return; 
     }
-      
-    // bytesRead == 0 means the pipe closed, script is done
-    ::close(_cgiFd);
-    _cgiFd = -1;
+    else // bytesRead == 0 means the pipe closed, script is done
+    {
+        ::close(_cgiFd);
+        _cgiFd = -1;
+    }
 
-    // The script may have exited without reading the whole request body
-    // (very normal, e.g. a script that ignores POST data). If we were
-    // still mid-write to its stdin, that pipe is now leaking: nothing
-    // will ever read it again, since the CGI process is gone.
+    //If script exited early without reading all of stdin (normal, e.g.
+    // ignores POST data). Close our end too, or the pipe leaks
     if (_cgiStdinFd != -1)
     {
         ::close(_cgiStdinFd);

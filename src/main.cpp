@@ -6,7 +6,7 @@
 
 int main(int argc, char** argv)
 {
-    //SIGPIPE prevents the program to close when one client is disconected
+    // SIGPIPE prevents the program to close when one client is disconnected
     ::signal(SIGPIPE, SIG_IGN);
 
     if (argc > 2)
@@ -23,6 +23,7 @@ int main(int argc, char** argv)
         if (configs.empty())
             throw std::runtime_error("no server blocks found in config");
 
+        // 
         ServerManager server(configs);
         server.startServer();
     }

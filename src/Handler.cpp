@@ -41,12 +41,13 @@ static int hexValue(char c)
 }
 
 /*
- * Decode percent-encoded sequences in a URI path.
- * Returns false for malformed encodings or embedded null bytes.
+ * Decode %XX characters in the URI.
+ * Example: "%20" becomes a space.
+ * Return false if the encoding is invalid or contains '\0'.
  */
 static bool percentDecodePath(const std::string& input, std::string& output)
 {
-    output.clear();
+    output.clear();//first clear the output string to ensure it's empty before decoding
     output.reserve(input.size());
 
     for (size_t i = 0; i < input.size(); ++i)
@@ -59,16 +60,16 @@ static bool percentDecodePath(const std::string& input, std::string& output)
             continue;
         }
 
-        if (i + 2 >= input.size())
+        if (i + 2 >= input.size())//not enough characters after '%' to form a valid hex code
             return false;
 
-        int high = hexValue(input[i + 1]);
+        int high = hexValue(input[i + 1]);//convert the first hex digit after '%' to its integer value
         int low = hexValue(input[i + 2]);
 
         if (high < 0 || low < 0)
             return false;
 
-        char decoded = static_cast<char>((high << 4) | low);
+        char decoded = static_cast<char>((high << 4) | low);//combine the two hex digits into a single byte
         if (decoded == '\0')
             return false;
 
@@ -128,28 +129,35 @@ static bool getRealPath(const std::string& path, std::string& out)
 }
 
 /*
- * Check that candidatePath is equal to basePath or inside it.
+ * Check if candidate is the same as base or is inside base.
+ * Example:
+ *   base      = /var/www
+ *   candidate = /var/www/images/cat.jpg  → true
+ *   candidate = /var/www2/file.txt       → false
  */
 static bool pathBeginsWithPath(const std::string& base, const std::string& candidate)
 {
+    // Special case: base is root, everything is inside it
     if (base == "/")
         return candidate.size() > 0 && candidate[0] == '/';
 
+    // candidate is exactly the same as base
     if (candidate == base)
         return true;
-
+    // Candidate must be longer to be inside base.
     if (candidate.size() <= base.size())
         return false;
-
+    // Candidate must start with the base path.
     if (candidate.compare(0, base.size(), base) != 0)
         return false;
-
+    // Make sure the match ends at a directory boundary.
+    // Prevents "/var/www2" from matching "/var/www".
     return candidate[base.size()] == '/';
 }
 
 /*
- * Ensure an existing requested path stays inside the configured location root.
- * Non-existing paths are allowed to continue so the normal flow can return 404.
+ * Check that the requested path is inside the configured root.
+ * If the path does not exist yet, allow it so it can return 404 later.
  */
 static bool isPathInsideRoot(const std::string& root, const std::string& candidate)
 {
@@ -197,7 +205,8 @@ static std::string htmlEscape(const std::string& input)
 }
 
 /*
- * Get a header value. Tries both lowercase and canonical casing.
+ * Find a header in the request and store its value in `value`.
+ * Returns true if the header was found, false otherwise.
  */
 static bool getHeaderValue(const HttpRequest& req,
                            const std::string& lowercaseName,
@@ -205,7 +214,7 @@ static bool getHeaderValue(const HttpRequest& req,
                            std::string& value)
 {
     std::map<std::string, std::string>::const_iterator it;
-
+    //use iterator to access the headers map and find the header with the given name
     it = req.headers.find(lowercaseName);
     if (it != req.headers.end())
     {
@@ -245,7 +254,7 @@ bool Handler::isMethodAllowed(const RouteDecision& rd, const std::string& method
 {
     if (rd.methods.empty())
         return true;
-
+    //iterate over the allowed methods in the RouteDecision and check if the requested method is present
     for (std::vector<std::string>::const_iterator it = rd.methods.begin();
          it != rd.methods.end(); ++it)
     {
@@ -257,12 +266,13 @@ bool Handler::isMethodAllowed(const RouteDecision& rd, const std::string& method
 }
 
 /*
- * Join allowed methods for the HTTP Allow header.
+ * Convert the allowed HTTP methods into a comma-separated string
+ * for the HTTP Allow header.
  */
 std::string Handler::joinAllowedMethods(const RouteDecision& rd) const
 {
     if (rd.methods.empty())
-        return "GET, POST, DELETE";
+        return "GET, POST, DELETE";//use default methods if none are specified
 
     std::ostringstream out;
 
@@ -327,16 +337,16 @@ bool Handler::parseMultipart(const HttpRequest& req,
         std::cerr << "Content-Type header not found\n";
         return false;
     }
-
+    //boundary= is the marker used to separate parts inside a multipart request
     size_t boundaryPos = contentType.find("boundary=");
     if (boundaryPos == std::string::npos)
     {
         std::cerr << "Boundary not found in Content-Type header\n";
         return false;
     }
-
+    //9 is the length of "boundary=" string, so we add it to get the start of the actual boundary value
     std::string boundaryValue = contentType.substr(boundaryPos + 9);
-
+    // Remove any trailing semicolon and whitespace from the boundary value
     size_t semicolon = boundaryValue.find(';');
     if (semicolon != std::string::npos)
         boundaryValue = boundaryValue.substr(0, semicolon);
@@ -348,7 +358,7 @@ bool Handler::parseMultipart(const HttpRequest& req,
     {
         boundaryValue.erase(boundaryValue.size() - 1);
     }
-
+    //boundary value may be quoted, so we remove the quotes if present
     if (boundaryValue.size() >= 2
         && boundaryValue[0] == '"'
         && boundaryValue[boundaryValue.size() - 1] == '"')
@@ -358,7 +368,7 @@ bool Handler::parseMultipart(const HttpRequest& req,
 
     if (boundaryValue.empty())
         return false;
-
+    // In the body, the boundary is prefixed with "--".
     std::string boundary = "--" + boundaryValue;
 
     size_t partStart = req.body.find(boundary);
@@ -367,7 +377,7 @@ bool Handler::parseMultipart(const HttpRequest& req,
         std::cerr << "Boundary not found in request body\n";
         return false;
     }
-
+    //Move past the boundary to get to the start of the part content
     partStart += boundary.size();
 
     size_t partEnd = req.body.find(boundary, partStart);
@@ -396,7 +406,7 @@ bool Handler::parseMultipart(const HttpRequest& req,
     }
 
     outFilename = part.substr(fnPos, fnEnd - fnPos);
-
+    // A blank line separates the multipart headers from the file content.
     size_t bodyStart = part.find("\r\n\r\n");
     if (bodyStart == std::string::npos)
     {
@@ -433,7 +443,7 @@ HttpResponse Handler::handleUpload(const RouteDecision& rd, const HttpRequest& r
 
     if (filename.empty())
         return makeError(rd, 400, "No filename provided");
-
+    // Prevent the client from using the filename to escape the upload directory.
     if (filename.find("..") != std::string::npos
         || filename.find('/') != std::string::npos
         || filename.find('\\') != std::string::npos)
@@ -468,14 +478,14 @@ std::string Handler::buildPath(const RouteDecision& rd, const HttpRequest& req)
     std::string root = rd.root;
 
     if (!root.empty() && root[root.size() - 1] == '/')
-        root.erase(root.size() - 1);
+        root.erase(root.size() - 1);//remove trailing slash from root
 
     std::string remainder = req.path;
 
     if (!rd.locationPath.empty() && rd.locationPath != "/")
     {
-        if (remainder.compare(0, rd.locationPath.size(), rd.locationPath) == 0)
-            remainder = remainder.substr(rd.locationPath.size());
+        if (remainder.compare(0, rd.locationPath.size(), rd.locationPath) == 0)//check if the request path starts with the location path
+            remainder = remainder.substr(rd.locationPath.size());//remove the matched location prefix from the request path
     }
 
     if (remainder.empty() || remainder[0] != '/')
@@ -654,7 +664,7 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
 
     if (rd.redirectCode != 0)
         return handleRedirect(rd);
-
+    //security check: reject any request with ".." segments in the path
     if (hasParentDirectorySegment(req.path))
         return makeError(rd, 403, "Forbidden");
 
@@ -665,17 +675,13 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
     if (!isMethodAllowed(rd, req.method))
     {
         HttpResponse res = makeError(rd, 405, "Method Not Allowed");
-        res.setHeader("Allow", joinAllowedMethods(rd));
+        res.setHeader("Allow", joinAllowedMethods(rd));//make a comma-separated list of allowed methods and set it in the Allow header
         return res;
     }
 
     if (req.method == "POST" && !rd.uploadPath.empty())
         return handleUpload(rd, req);
 
-    // FIXED (16 july, by Noor): a POST with no CGI and no upload configured
-    // should just be accepted (e.g. /post_body in the official tester, which
-    // only cares that the body respects client_max_body_size). Previously
-    // this fell through to a directory check and returned 403 or 501.
     if (req.method == "POST" && rd.cgiPass.empty() && rd.uploadPath.empty())
     {
         HttpResponse res;
@@ -704,7 +710,6 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
             return handleAutoindex(fullPath, req.path);
 
         return makeError(rd, 404, "Not Found");
-        // return makeError(rd, 403, "Forbidden");
     }
 
     if (req.method == "GET")

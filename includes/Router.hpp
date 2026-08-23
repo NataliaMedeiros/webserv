@@ -7,15 +7,12 @@
 #include "ServerConfig.hpp"
 #include <cstddef>
 
-
-// NOTE: Router decides which handler should run, based on request + (later) config.
 class Router
 {
     public:
         Router() : servConfig(nullptr) {}
         Router(const ServerConfig& servInput);
         // Returns the best-matching RouteDecision for this request.
-        // Person 1 calls this with the parsed HttpRequest.
         RouteDecision route(const HttpRequest& req) const;
         size_t maxBodySizeFor(const std::string& path) const;
 

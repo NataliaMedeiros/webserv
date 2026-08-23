@@ -27,6 +27,7 @@ static void copyServerDefaults(RouteDecision& decision,const ServerConfig& confi
 //   4. If no location matches, server/default values are still returned.
 RouteDecision Router::route(const HttpRequest& req) const
 {
+    //make an instance of RouteDecision with default values
     RouteDecision best;
 
     if (!servConfig)
@@ -35,24 +36,23 @@ RouteDecision Router::route(const HttpRequest& req) const
     copyServerDefaults(best, *servConfig);
 
     size_t bestLen = 0;
-
+    //iterate over all locations in the server config to find the best match
     for (std::vector<LocationConfig>::const_iterator it = servConfig->locations.begin();
          it != servConfig->locations.end(); ++it)
     {
-        const LocationConfig& loc = *it;
-        const std::string& locPath = loc.path;
-        const std::string& uri = req.path;
-
-        bool prefixMatch = uri.compare(0, locPath.size(), locPath) == 0;
-        bool boundaryOk = (locPath == "/")
+        const LocationConfig& loc = *it;//get the current location config
+        const std::string& locPath = loc.path; //get the path of the current location config
+        const std::string& uri = req.path; //get the path of the request
+        bool prefixMatch = uri.compare(0, locPath.size(), locPath) == 0; //match prefix
+        bool boundaryOk = (locPath == "/") 
                        || (uri.size() == locPath.size())
-                       || (uri[locPath.size()] == '/');
-
+                       || (uri[locPath.size()] == '/'); //check if the match is on a path boundary
+        //if the current location config is longer than the best match, update best
         if (prefixMatch && boundaryOk && locPath.size() > bestLen)
         {
             bestLen = locPath.size();
             best.locationPath = locPath;
-
+            //if the location config root is empty, use the server config root
             best.root = loc.root.empty() ? servConfig->root : loc.root;
             if (best.root.empty())
                 best.root = "./www";
@@ -72,6 +72,7 @@ RouteDecision Router::route(const HttpRequest& req) const
                 best.maxBodySize = loc.maxBodySize;
             }
             best.errorPages = servConfig->errorPages;
+            //iterate over the error pages to merge the location config error pages with the server config error pages
             for (std::map<int, std::string>::const_iterator ep = loc.errorPages.begin();
                  ep != loc.errorPages.end(); ++ep)
             {
@@ -81,6 +82,13 @@ RouteDecision Router::route(const HttpRequest& req) const
     }
     return best;
 }
+
+// How big is this request allowed to be?
+//
+// HttpRequestParser calls this function
+// same rule as route() but for client_max_body_size. It returns the size limit in bytes.
+// If the location has no limit, uses the server's limit.
+// Returns 1 MB if there is no server config.
 
 size_t Router::maxBodySizeFor(
     const std::string& path

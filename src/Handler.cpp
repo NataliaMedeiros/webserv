@@ -604,16 +604,7 @@ HttpResponse Handler::handleAutoindex(const std::string& dirPath,
          << "    </header>\n"
          << "    <ul class=\"file-list\">\n";
 
-    // if (displayPath != "/")
-    //     html << "      <li>\n"
-    //          << "        <a class=\"file-row directory\" href=\"../\">\n"
-    //          << "          <span class=\"file-icon\">&larr;</span>\n"
-    //          << "          <span class=\"file-name\">"
-    //          << "Home"
-    //          << "</span>\n"
-    //          << "        </a>\n"
-    //          << "      </li>\n";
-
+    // Generate a list item for each entry in the directory
     for (std::vector<std::string>::const_iterator it = entries.begin();
          it != entries.end(); ++it)
     {
@@ -699,9 +690,9 @@ HttpResponse Handler::handle(const RouteDecision& rd, const HttpRequest& req)
         std::string withIndex = fullPath;
 
         if (!withIndex.empty() && withIndex[withIndex.size() - 1] != '/')
-            withIndex += '/';
+            withIndex += '/';//append a trailing slash to the directory path if it doesn't already have one
 
-        withIndex += rd.index;
+        withIndex += rd.index;//append the index filename to the directory path
 
         if (FileSystem::isFileNormal(withIndex))
             return handleStaticFile(rd, withIndex);

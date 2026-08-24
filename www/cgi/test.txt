@@ -1,0 +1,4 @@
+==================== HELLO TEXT FILE ===============================
+
+
+This text file is inside the CGI folder. The CGI reads it using a relative path, proving that it runs from the correct directory.
